@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QtCore>
 #include <QtGui>
+#include <QtWidgets>
 
 class Commons : public QObject
 {
@@ -82,6 +83,18 @@ public:
             else if(file_info.isFile())
                 list << file_info.absoluteFilePath();
         }
+        return list;
+    }
+
+    //获取当前路径下文件（含过滤）
+    static QStringList getCurrentFiles(QString dirPath, QStringList filters = QStringList())
+    {
+        QStringList list;
+        QDir dir(dirPath);
+        QFileInfoList info_list = dir.entryInfoList(filters, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot
+                                                    | QDir::NoSymLinks | QDir::AllDirs);
+        foreach(QFileInfo file_info, info_list)
+            list << file_info.absoluteFilePath();
         return list;
     }
 
@@ -318,10 +331,30 @@ public:
     }
 
     //删除当前文件夹
-    static bool removeCurrentDir(QString dirPath) {
-        QDir dir(dirPath);
+    static bool removeCurrentDir(QDir dir) {
         dir.setFilter(QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot
                       | QDir::NoSymLinks | QDir::AllDirs);
+        return dir.removeRecursively();
+    }
+
+    //删除当前文件夹2
+    static bool removeCurrentDir(QString dirPath) {
+        QDir dir(dirPath);
+        return removeCurrentDir(dir);
+    }
+
+    static bool removeRecursiveDir(QString dirPath) {
+        QDir dir(dirPath);
+        QFileInfoList info_list = dir.entryInfoList(QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot
+                                                    | QDir::NoSymLinks | QDir::AllDirs);
+        foreach(QFileInfo file_info, info_list) {
+            if (file_info.isDir())
+                removeRecursiveDir(file_info.absoluteFilePath());
+            else if (file_info.isFile()) {
+                if(!QFile::remove(file_info.absoluteFilePath()))
+                    return false;
+            }
+        }
         return dir.removeRecursively();
     }
 
@@ -330,6 +363,143 @@ public:
         QString str = QString::number(count);
         int size = str.size();
         return QString("%1").arg(k, size, 10, QLatin1Char('0'));
+    }
+
+    //1.图片转base64
+    static QByteArray imageToBase64(const QString &ImgPath)//ImgPath: 图片路径
+    {
+        QImage image(ImgPath);
+        QByteArray ba;
+        QBuffer buf(&ba);
+        image.save(&buf);//图片格式
+        QByteArray hexed = ba.toBase64();
+        buf.close();
+        return hexed;
+    }
+
+    //2.base64转图片
+    static QImage base64ToImage(const QByteArray &base)//base: base64值
+    {
+        QByteArray realBa = QByteArray::fromBase64(base);
+        QBuffer buffer(&realBa);
+        buffer.open(QIODevice::WriteOnly);
+        QImage image;
+        image.loadFromData(realBa);
+        buffer.close();
+        return image;
+    }
+
+    static QString unescapeHtml(QString arg){
+        QByteArray array(u8R"({"&AElig;":"Æ","&Aacute;":"Á","&Agrave;":"À","&Atilde;":"Ã","&Auml":"Ä","&Ccedil;":"Ç","&ETH;":"Ð","&Eacute;":"É","&Ecirc;":"Ê","&Egrave;":"È","&Euml;":"Ë","&Iacute;":"Í","&Icirc;":"Î","&Igrave;":"Ì","&Iuml;":"Ï","&Ntilde;":"Ñ","&Oacute;":"Ó","&Ocirc;":"Ô","&Ograve;":"Ò","&Oslash;":"Ø","&Otilde;":"Õ","&Ouml;":"Ö","&THORN;":"Þ","&Uacute;":"Ú","&Ucirc;":"Û","&Ugrave;":"Ù","&Uuml;":"Ü","&Yacute;":"Ý","&aacute;":"á","&acirc;":"â","&acute;":"′","&aelig;":"æ","&agrave;":"à","&aring;":"å","&atilde;":"ã","&auml;":"ä","&brvbar;":"|","&ccedil;":"ç","&cedil;":"?","&cent;":"￠","&circ;":"Â","&copy;":"©","&curren;":"¤","&deg;":"°","&divide;":"÷","&eacute;":"é","&ecirc;":"ê","&egrave;":"è","&euml;":"ë","&frac12;":"?","&frac14;":"?","&frac34;":"?","&iacute;":"í","&icirc;":"î","&ieth;":"ð","&iexcl;":"?","&igrave;":"ì","&iquest;":"?","&iuml;":"ï","&laquo;":"?","&macr;":"ˉ","&micro;":"μ","&middot;":"·","&not;":"?","&ntilde;":"ñ","&oacute;":"ó","&ocirc;":"ô","&ograve;":"ò","&ordf;":"a","&ordm;":"o","&oslash;":"ø","&otilde;":"õ","&ouml;":"ö","&para;":"?","&plusmn;":"±","&pound;":"￡","&raquo;":"?","&reg;":"®","&ring;":"Å","&sect;":"§","&shy;":"/x7f","&sup1;":"1","&sup2;":"2","&sup3;":"3","&szlig;":"ß","&thorn;":"þ","&times;":"&amp;times;","&uacute;":"ú","&ucirc;":"û","&ugrave;":"ù","&uml;":"¨","&uuml;":"ü","&yacute;":"ý","&yen;":"￥","&yuml;":"ÿ","&quot;":"\"","&lt;":"<","&gt;":">","&nbsp;":" ","&amp;":"&"})");
+        auto json = QJsonDocument::fromJson(array);
+        auto root = json.object();
+        for(auto i=root.begin();i!=root.end();i++)
+            arg.replace(i.key(),i.value().toString());
+        return arg;
+    }
+
+    static void genFileIcon(QString suffix, int size)
+    {
+        QFileIconProvider provider;
+        QIcon icon;
+
+        QDir iconDir = QDir(QDir::current().absoluteFilePath("icons"));
+        if(!iconDir.exists())
+            QDir::current().mkdir("icons");
+
+        QString strTemplateName = iconDir.absolutePath() + "/" +
+                QCoreApplication::applicationName() + "_XXXXXX." + suffix;
+        qDebug() << "临时路径：" << strTemplateName;
+        QTemporaryFile tmpFile(strTemplateName);
+    //    tmpFile.setAutoRemove(false);
+        QString file_name;
+        if (tmpFile.open()) {
+            file_name = tmpFile.fileName();
+            qDebug() << "临时文件：" << file_name;
+            icon = provider.icon(QFileInfo(file_name));
+            tmpFile.close();
+            QPixmap pixmap = icon.pixmap(size, size);
+            QImage img = pixmap.toImage();
+            img.save(iconDir.absoluteFilePath(QString("%1.png").arg(suffix)), "PNG", 100);
+        }
+        else
+            qCritical() << QString("生成图标失败 %1").arg(tmpFile.fileName());
+    }
+
+    static QStringList iconList()
+    {
+        QDir iconDir = QDir(QDir::current().absoluteFilePath("icons"));
+        return iconDir.entryList(QStringList(QString("*.png")), QDir::Files);
+    }
+
+    static QIcon fileIcon(QString suffix, int size = 256) {
+        QFileIconProvider icon_provider;
+        QIcon icon;
+        if(!suffix.isEmpty()) {
+            QStringList iList = iconList();
+            if(!iList.contains(QString("%1.png").arg(suffix)))
+                genFileIcon(suffix, size);
+            icon = QIcon(QString(QDir(QDir::current().absoluteFilePath("icons"))
+                                 .absoluteFilePath(suffix)));
+        } else {
+            icon = icon_provider.icon(QFileIconProvider::File);
+        }
+        return icon;
+    }
+
+    static void setLabelWidth(QLabel *label, int limitWidth, Qt::TextElideMode mode = Qt::ElideRight)
+    {
+        QFontMetrics fontMetrics(label->font());
+        int fontSize = fontMetrics.width(label->text());
+        QString str = label->text();
+        if(fontSize > limitWidth)
+            str = fontMetrics.elidedText(label->text(), mode, limitWidth);
+        label->setText(str);
+    }
+
+    static QString readIni()
+    {
+        QSettings settings;
+        QString name = settings.value("verify/name").toString();
+        QString pwd = settings.value("verify/pwd").toString();
+        qDebug() << "user:" << name << pwd;
+        QString authorization = settings.value("verify/authorization").toString();
+        return authorization;
+    }
+
+    static QString readDownloadPath()
+    {
+        QSettings settings;
+        QString downloadpath = settings.value("verify/downloadpath").toString();
+        return downloadpath;
+    }
+
+    static QStringList readUserIni()
+    {
+        QSettings settings;
+        QString name = settings.value("verify/name").toString();
+        QString pwd = settings.value("verify/pwd").toString();
+        QString authorization = settings.value("verify/authorization").toString();
+        QString downloadpath = settings.value("verify/downloadpath").toString();
+        QStringList list;
+        list << name << pwd << authorization << downloadpath;
+        return list;
+    }
+
+    static void addSetting(QString path)
+    {
+        QSettings settings;
+        settings.beginGroup(QString("verify"));
+        settings.setValue(QString("downloadpath"), path);
+        settings.endGroup();
+    }
+
+    static void resetPassword(QString password)
+    {
+        QSettings settings;
+        settings.beginGroup(QString("verify"));
+        settings.setValue(QString("pwd"), password);
+        settings.endGroup();
     }
 };
 
