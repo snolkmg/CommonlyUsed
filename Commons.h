@@ -28,6 +28,16 @@ public:
         file.close();
     }
 
+    static void writeFileBa(QString filePath, QByteArray bytes, bool isAppend = false) {
+        QFile file(filePath);
+        if(isAppend)
+            file.open(QIODevice::WriteOnly | QIODevice::Append);
+        else
+            file.open(QIODevice::WriteOnly);
+        file.write(bytes);
+        file.close();
+    }
+
     static QString readFile(QString filePath) {
         QFile file(filePath);
         file.open(QIODevice::ReadOnly | QIODevice::Text);
@@ -82,6 +92,40 @@ public:
                 list = getAllFiles(file_info.absoluteFilePath(), filters, list);
             else if(file_info.isFile())
                 list << file_info.absoluteFilePath();
+        }
+        return list;
+    }
+
+    //获取目标路径下所有文件名（含过滤）
+    static QStringList getAllFileNames(QString dirPath,
+                                   QStringList filters = QStringList(),
+                                   QStringList list = QStringList())
+    {
+        QDir dir(dirPath);
+        QFileInfoList info_list = dir.entryInfoList(filters, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot
+                                                    | QDir::NoSymLinks | QDir::AllDirs);
+        foreach(QFileInfo file_info, info_list) {
+            if(file_info.isDir())
+                list = getAllFileNames(file_info.absoluteFilePath(), filters, list);
+            else if(file_info.isFile())
+                list << file_info.fileName();
+        }
+        return list;
+    }
+
+    //获取目标路径下所有文件baseName（含过滤）
+    static QStringList getAllBaseNames(QString dirPath,
+                                   QStringList filters = QStringList(),
+                                   QStringList list = QStringList())
+    {
+        QDir dir(dirPath);
+        QFileInfoList info_list = dir.entryInfoList(filters, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot
+                                                    | QDir::NoSymLinks | QDir::AllDirs);
+        foreach(QFileInfo file_info, info_list) {
+            if(file_info.isDir())
+                list = getAllBaseNames(file_info.absoluteFilePath(), filters, list);
+            else if(file_info.isFile())
+                list << file_info.baseName();
         }
         return list;
     }
@@ -284,9 +328,9 @@ public:
             md5Hash.addData(ba);
         }
         QString md5 = md5Hash.result().toHex().toUpper();
-        return md5;
         file.flush();
         file.close();
+        return md5;
     }
 
     //合法的标题
@@ -317,7 +361,7 @@ public:
         QLocale cn(QLocale::Chinese);
         QCollator collator(cn);
         qStableSort(list.begin(), list.end(), collator);
-        qDebug() << "顺序列表：" << list;
+//        qDebug() << "顺序列表：" << list;
         return list;
     }
 
@@ -389,15 +433,6 @@ public:
         return image;
     }
 
-    static QString unescapeHtml(QString arg){
-        QByteArray array(u8R"({"&AElig;":"Æ","&Aacute;":"Á","&Agrave;":"À","&Atilde;":"Ã","&Auml":"Ä","&Ccedil;":"Ç","&ETH;":"Ð","&Eacute;":"É","&Ecirc;":"Ê","&Egrave;":"È","&Euml;":"Ë","&Iacute;":"Í","&Icirc;":"Î","&Igrave;":"Ì","&Iuml;":"Ï","&Ntilde;":"Ñ","&Oacute;":"Ó","&Ocirc;":"Ô","&Ograve;":"Ò","&Oslash;":"Ø","&Otilde;":"Õ","&Ouml;":"Ö","&THORN;":"Þ","&Uacute;":"Ú","&Ucirc;":"Û","&Ugrave;":"Ù","&Uuml;":"Ü","&Yacute;":"Ý","&aacute;":"á","&acirc;":"â","&acute;":"′","&aelig;":"æ","&agrave;":"à","&aring;":"å","&atilde;":"ã","&auml;":"ä","&brvbar;":"|","&ccedil;":"ç","&cedil;":"?","&cent;":"￠","&circ;":"Â","&copy;":"©","&curren;":"¤","&deg;":"°","&divide;":"÷","&eacute;":"é","&ecirc;":"ê","&egrave;":"è","&euml;":"ë","&frac12;":"?","&frac14;":"?","&frac34;":"?","&iacute;":"í","&icirc;":"î","&ieth;":"ð","&iexcl;":"?","&igrave;":"ì","&iquest;":"?","&iuml;":"ï","&laquo;":"?","&macr;":"ˉ","&micro;":"μ","&middot;":"·","&not;":"?","&ntilde;":"ñ","&oacute;":"ó","&ocirc;":"ô","&ograve;":"ò","&ordf;":"a","&ordm;":"o","&oslash;":"ø","&otilde;":"õ","&ouml;":"ö","&para;":"?","&plusmn;":"±","&pound;":"￡","&raquo;":"?","&reg;":"®","&ring;":"Å","&sect;":"§","&shy;":"/x7f","&sup1;":"1","&sup2;":"2","&sup3;":"3","&szlig;":"ß","&thorn;":"þ","&times;":"&amp;times;","&uacute;":"ú","&ucirc;":"û","&ugrave;":"ù","&uml;":"¨","&uuml;":"ü","&yacute;":"ý","&yen;":"￥","&yuml;":"ÿ","&quot;":"\"","&lt;":"<","&gt;":">","&nbsp;":" ","&amp;":"&"})");
-        auto json = QJsonDocument::fromJson(array);
-        auto root = json.object();
-        for(auto i=root.begin();i!=root.end();i++)
-            arg.replace(i.key(),i.value().toString());
-        return arg;
-    }
-
     static void genFileIcon(QString suffix, int size)
     {
         QFileIconProvider provider;
@@ -457,12 +492,19 @@ public:
         label->setText(str);
     }
 
+    static QString workPath()
+    {
+        QDir serverDir = QDir(QDir::current().absoluteFilePath("server"));
+        QString path = serverDir.absoluteFilePath("ip.txt");
+        return readFile(path).trimmed();
+    }
+
     static QString readIni()
     {
         QSettings settings;
-        QString name = settings.value("verify/name").toString();
-        QString pwd = settings.value("verify/pwd").toString();
-        qDebug() << "user:" << name << pwd;
+//        QString name = settings.value("verify/name").toString();
+//        QString pwd = settings.value("verify/pwd").toString();
+//        qDebug() << "user:" << name << pwd;
         QString authorization = settings.value("verify/authorization").toString();
         return authorization;
     }
@@ -500,6 +542,123 @@ public:
         settings.beginGroup(QString("verify"));
         settings.setValue(QString("pwd"), password);
         settings.endGroup();
+    }
+
+    //获取excel列（最多702列【ZZ列】）
+    static QString excelNumberToLetter(int k) {
+        if(k > 702)
+            return "";
+        int m, n = 0;
+        m = k / 26;
+        n = k % 26;
+        if(m == 0) {
+            return QString(QChar(k + 64));
+        } else {
+            if(n == 0) {
+                if(m == 1)
+                    return QString(QChar(k + 64));
+                else
+                    return QString(QChar(m + 63)) + QString(QChar(90));
+            } else
+                return QString(QChar(m + 64)) + QString(QChar(n + 64));
+        }
+    }
+
+    static QString dateFormat(QString dateStr) {
+        QString cnStr = dateStr;
+        QDate pubDate = QDate::fromString(cnStr, "yyyy-MM-dd");
+        if(pubDate.isNull())
+            pubDate = QDate::fromString(cnStr, "yyyy-M-d");
+        if(pubDate.isNull())
+            pubDate = QDate::fromString(cnStr, "yyyy-MM");
+        if(pubDate.isNull())
+            pubDate = QDate::fromString(cnStr, "yyyy-M");
+        if(pubDate.isNull())
+            pubDate = QDate::fromString(cnStr, "yyyy/MM/dd");
+        if(pubDate.isNull())
+            pubDate = QDate::fromString(cnStr, "yyyy/M/d");
+        if(pubDate.isNull())
+            pubDate = QDate::fromString(cnStr, "yyyy/MM");
+        if(pubDate.isNull())
+            pubDate = QDate::fromString(cnStr, "yyyy/M");
+        if(pubDate.isNull())
+            return dateStr;
+        qDebug() << pubDate;
+        return pubDate.toString("yyyy-MM-dd");
+    }
+
+    //QStringList 去重
+    //!使用样例：removeListSame(&list);
+    static void removeListSame(QStringList *list) {
+        for (int i = 0; i < list->count(); i++) {
+            for (int k = i + 1; k <  list->count(); k++) {
+                if (list->at(i) ==  list->at(k)) {
+                    list->removeAt(k);
+                    k--;
+                }
+            }
+        }
+    }
+
+    //QStringList 查找重复项
+    //!使用样例：findListSame(list);
+    static QList<int> findListSame(QStringList list, bool isAscending = false) {
+        QList<int> list1;
+        for (int i = 0; i < list.count(); i++) {
+            for (int k = i + 1; k <  list.count(); k++) {
+                if (list.at(i) == list.at(k)) {
+                    if(!list1.contains(k))
+                        list1.append(k);
+                }
+            }
+        }
+        if(isAscending)
+            qStableSort(list1.begin(), list1.end(), qLess<int>());
+        else
+            qStableSort(list1.begin(), list1.end(), qGreater<int>());
+        return list1;
+    }
+
+    static QStringList removeDuplicatesByIndex(QList<int> intList, QStringList list) {
+        for(int i = 0; i < intList.size(); i++) {
+            int k = intList.at(i);
+            list.removeAt(k);
+        }
+        return list;
+    }
+
+    static QStringList listRemoveDuplicates(QStringList list, QStringList codeList) {
+        QList<int> intList = findListSame(codeList);
+//        qDebug() << intList;
+        removeDuplicatesByIndex(intList, list);
+        return list;
+    }
+
+    //自定义文件特征码1：文件前8192个字节md5+文件大小
+    static QString fileFeatureCode(QString filePath) {
+        QFile file(filePath);
+        file.open(QIODevice::ReadOnly);
+        QCryptographicHash md5Hash(QCryptographicHash::Md5);
+        QByteArray ba = file.read(8192);
+        md5Hash.addData(ba);
+        QString md5 = md5Hash.result().toHex();
+        file.flush();
+        file.close();
+        return md5;
+    }
+
+    //自定义文件特征码2：文件前8192个字节md5+文件大小
+    static QString fileFeatureCodeWithSize(QString filePath) {
+        QFile file(filePath);
+        file.open(QIODevice::ReadOnly);
+        QCryptographicHash md5Hash(QCryptographicHash::Md5);
+        QByteArray ba = file.read(8192);
+        md5Hash.addData(ba);
+        QString md5 = md5Hash.result().toHex();
+        QString fileSize = QString::number(file.size());
+        file.flush();
+        file.close();
+        return QString("%1_%2").arg(md5).arg(fileSize);
     }
 };
 
