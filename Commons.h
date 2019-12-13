@@ -6,6 +6,16 @@
 #include <QtGui>
 #include <QtWidgets>
 
+static QStringList cnList1 = QStringList() << QStringLiteral("零") << QStringLiteral("一") << QStringLiteral("二")
+                                   << QStringLiteral("三") << QStringLiteral("四") << QStringLiteral("五")
+                                   << QStringLiteral("六") << QStringLiteral("七") << QStringLiteral("八")
+                                   << QStringLiteral("九");
+static QList<qint64> numList1 = QList<qint64>() << 0 << 1 << 2 << 3 << 4 << 5 << 6 << 7 << 8 << 9;
+
+static QStringList cnList2 = QStringList() << QStringLiteral("十") << QStringLiteral("百") << QStringLiteral("千")
+                                    << QStringLiteral("万") << QStringLiteral("亿") << QStringLiteral("兆");
+static QList<qint64> numList2 = QList<qint64>() << 10 << 100 << 1000 << 10000 << 100000000 << 1000000000000;
+
 class Commons : public QObject
 {
     Q_OBJECT
@@ -582,6 +592,8 @@ public:
         if(pubDate.isNull())
             pubDate = QDate::fromString(cnStr, "yyyy/M");
         if(pubDate.isNull())
+            pubDate = QDate::fromString(cnStr, "yyyyMMdd");
+        if(pubDate.isNull())
             return dateStr;
         qDebug() << pubDate;
         return pubDate.toString("yyyy-MM-dd");
@@ -634,7 +646,7 @@ public:
         return list;
     }
 
-    //自定义文件特征码1：文件前8192个字节md5+文件大小
+    //自定义文件特征码1：文件前8192个字节md5
     static QString fileFeatureCode(QString filePath) {
         QFile file(filePath);
         file.open(QIODevice::ReadOnly);
@@ -659,6 +671,62 @@ public:
         file.flush();
         file.close();
         return QString("%1_%2").arg(md5).arg(fileSize);
+    }
+
+    static bool openFileAndSelect(QString filePath) {
+        filePath.replace("/", "\\");
+        QString cmd = QString("explorer.exe /select,%1").arg(filePath);
+        return QProcess::startDetached(cmd);
+    }
+
+    //模板逆向
+    template<class T>
+    static T strReversed(T str) {
+        T str2;
+        for(auto i : str)
+            str2.prepend(i);
+        return str2;
+    }
+
+    //中文数字转阿拉伯数字
+    static qint64 cnToNum(QString str) {
+        QList<qint64> nums;
+        qint64 unit = 1;
+        QString text = strReversed(str);
+        for(QString s : text) {
+            if(cnList1.contains(s)) {
+                int k = cnList1.indexOf(s);
+                qint64 num = numList1.at(k) * unit;
+                nums.append(num);
+            } else {
+                int k = cnList2.indexOf(s);
+                qint64 value = numList2.at(k);
+                if(value >= 10000 && value <=100000000) {
+                    nums.append(value);
+                    unit = 1;
+                } else {
+                    unit = value;
+                }
+            }
+        }
+
+        if(unit == 10)
+            nums.append(10);
+
+        qint64 tmp = 0;
+        qint64 res = 0;
+        QList<qint64> nums2 = strReversed(nums);
+        for(qint64 num : nums2) {
+            if(num >= 10000 && num <=100000000) {
+                tmp *= num;
+                res += tmp;
+                tmp = 0;
+            } else {
+                tmp += num;
+            }
+        }
+        res += tmp;
+        return res;
     }
 };
 
