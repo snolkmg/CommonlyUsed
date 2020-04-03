@@ -64,7 +64,7 @@ void downloadRNM::httpReadyRead()
         file.write(0);
     else
         file.write(m_pReply->readAll());
-    qDebug() << m_downloadFileName << "Download Ready!!!";
+//    qDebug() << m_downloadFileName << "Download Ready!!!";
 }
 
 void downloadRNM::updateDataReadProgress(qint64 bytesRead, qint64 totalBytes)
@@ -119,4 +119,20 @@ void downloadRNM::speed()
     int secs = remainingSize / rate;
     QString remainingTime = Commons::timeFormat(secs);
     emit speedChanged(m_exist, QString("当前速度：%1，剩余时间：%2").arg(rateStr).arg(remainingTime));
+}
+
+void downloadRNM::stopWork()
+{
+    timer->stop();
+    if (m_pReply != NULL)
+    {
+        disconnect(this, SIGNAL(finished(QNetworkReply *)), this, SLOT(httpFinished(QNetworkReply *)));
+        disconnect(m_pReply, SIGNAL(downloadProgress(qint64,qint64)), this, SLOT(updateDataReadProgress(qint64,qint64)));
+        disconnect(m_pReply, SIGNAL(readyRead()), this, SLOT(httpReadyRead()));
+        m_pReply->abort();
+        m_pReply->deleteLater();
+        m_pReply = NULL;
+    }
+//    emit replyFinished(404, m_downloadFileName, m_exist, tr("已停止"));
+    this->deleteLater();
 }

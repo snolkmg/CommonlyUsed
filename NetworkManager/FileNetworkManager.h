@@ -24,13 +24,20 @@ public:
 
     void deleteExeute();
 
-    QStringList m_paraList;
+    void appendFile();
+
     qint64 m_hasSize;
     int m_exist;
     QProgressBar *m_pBar;
 
     int m_statusCode;
     QByteArray m_bytes;
+
+    QBuffer *m_buffer;
+
+    void uploadBuffer();
+
+    void stopWork();
 
 signals:
     void replyFileFinished(int statusCode, QByteArray baJson);
@@ -64,8 +71,6 @@ private:
     QTimer *timer;
 
     QNetworkRequest requestSetRawHeader(QNetworkRequest request);
-
-    QString speedMsg();
 };
 
 #endif // FILENETWORKMANAGER_H

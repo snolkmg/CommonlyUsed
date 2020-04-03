@@ -24,12 +24,12 @@ public:
     QByteArray m_bytes;
 
     QString userAgent;
-    QString title;
-    QString dirPath;
 
     void execPost();
     void execPost2();
     void execDelete();
+
+    void stopWork();
 
 signals:
     void replyJsonFinished(int statusCode, QByteArray baJson);

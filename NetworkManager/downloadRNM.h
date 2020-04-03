@@ -16,6 +16,8 @@ public:
     void execute();
     qint64 m_fileSize;
 
+    void stopWork();
+
 signals:
     void fileSizeChanged(qint64 fileSize, int exist);
 

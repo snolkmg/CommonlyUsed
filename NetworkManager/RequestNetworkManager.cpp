@@ -46,11 +46,11 @@ void RequestNetworkManager::execute()
     if(!userAgent.isEmpty())
         request.setHeader(QNetworkRequest::UserAgentHeader, QVariant(userAgent));
 
-//    QString header = m_tokenPair.first;
-//    if(!header.isEmpty()) {
-//        QString token = m_tokenPair.second;
-//        request.setRawHeader(header.toUtf8(), token.toUtf8());
-//    }
+    QString header = m_tokenPair.first;
+    if(!header.isEmpty()) {
+        QString token = m_tokenPair.second;
+        request.setRawHeader(header.toUtf8(), token.toUtf8());
+    }
 
 //    setCookieJar(&netCookies);
     m_pReply = get(request);
@@ -153,3 +153,17 @@ void RequestNetworkManager::readyRead()
 {
 
 }
+
+void RequestNetworkManager::stopWork()
+{
+    if (m_pReply != NULL)
+    {
+        disconnect(this, SIGNAL(finished(QNetworkReply *)), this, SLOT(replyFinished(QNetworkReply *)));
+        disconnect(m_pReply, SIGNAL(readyRead()), this, SLOT(readyRead()));
+        m_pReply->abort();
+        m_pReply->deleteLater();
+        m_pReply = NULL;
+    }
+    this->deleteLater();
+}
+

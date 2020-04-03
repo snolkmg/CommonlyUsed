@@ -102,19 +102,6 @@ void FileNetworkManager::upload()
     if(!m_fileType.isEmpty())
         query.addQueryItem("fileType", m_fileType);
 
-    if(!m_paraList.isEmpty()) {
-        QStringList keyList;
-        keyList << "title" << "creatorName" << "publisher" << "publishDate"
-                << "isbn" << "sourceProviderId" << "copyrightAuthorizer" << "readingPlatform";
-
-        for(int i = 0; i < m_paraList.size(); i++) {
-            QString value = m_paraList.at(i);
-            if(value.isEmpty())
-                continue;
-            query.addQueryItem(keyList.at(i), QString(value.toUtf8().toPercentEncoding()));
-        }
-    }
-
     m_url.setQuery(query);
 
     request = requestSetRawHeader(request);
@@ -127,6 +114,42 @@ void FileNetworkManager::upload()
     multiPart->setParent(m_pReply);
     connect(m_pReply, SIGNAL(readyRead()), this, SLOT(readyRead()));
     connect(m_pReply, SIGNAL(uploadProgress(qint64,qint64)), this, SLOT(onUploadProgress(qint64,qint64)));
+    connect(m_pReply, &QNetworkReply::finished, [this]{
+        if(m_pReply != NULL) {
+            m_pReply->deleteLater();
+            m_pReply = 0;
+        }
+    });
+}
+
+void FileNetworkManager::appendFile()
+{
+    QHttpMultiPart *multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
+
+    QHttpPart filePart;
+    filePart.setHeader(QNetworkRequest::ContentTypeHeader, QLatin1String("multipart/form-data;"));
+    filePart.setHeader(QNetworkRequest::ContentDispositionHeader,
+                       QVariant(QString("form-data; name=\"file\"; filename=\"%1\"").arg(m_fileName)));
+
+    QFile *file = new QFile(m_filePath);
+    file->open(QIODevice::ReadOnly);
+    filePart.setBodyDevice(file);
+    file->setParent(multiPart);
+    multiPart->append(filePart);
+
+    QNetworkRequest request;
+    QUrl m_url = QUrl(QString(m_address));
+
+    request = requestSetRawHeader(request);
+
+    qDebug() << "服务器地址：" << m_url;
+
+    request.setUrl(m_url);
+
+    m_pReply = put(request, multiPart);
+    multiPart->setParent(m_pReply);
+    connect(m_pReply, SIGNAL(readyRead()), this, SLOT(readyRead()));
+//    connect(m_pReply, SIGNAL(uploadProgress(qint64,qint64)), this, SLOT(onUploadProgress(qint64,qint64)));
     connect(m_pReply, &QNetworkReply::finished, [this]{
         if(m_pReply != NULL) {
             m_pReply->deleteLater();
@@ -205,29 +228,8 @@ void FileNetworkManager::replyFinished(QNetworkReply *reply)
     m_statusCode = statusCode.toInt();
     m_bytes = bytes;
     emit replyFileFinished(m_statusCode, m_bytes);
-    emit speedChanged(m_exist, speedMsg());
+    emit speedChanged(m_exist, QString("上传成功"));
     this->deleteLater();
-}
-
-QString FileNetworkManager::speedMsg()
-{
-    QString msg;
-    if(m_statusCode == 200) {
-        QJsonParseError jsonError;
-        QJsonDocument document = QJsonDocument::fromJson(m_bytes, &jsonError);
-        if(!document.isNull() && jsonError.error == QJsonParseError::NoError) {
-            QJsonObject object = document.object();
-            bool success = object.value("success").toBool();
-            QString message = object.value("message").toString();
-            if(success)
-                msg = QString("上传成功");
-            else
-                msg = QString("【错误原因：%1】【错误详情：%2】").arg(message).arg(object.value("data").toString());
-        } else
-            msg = jsonError.errorString();
-    } else
-        msg = QString("网络错误");
-    return msg;
 }
 
 // 本地写文件
@@ -273,5 +275,71 @@ void FileNetworkManager::speed()
     QString str = QString("当前速度：%1，剩余时间：%2").arg(rateStr).arg(remainingTime);
     qDebug() << str;
     emit speedChanged(m_exist, str);
+}
+
+void FileNetworkManager::uploadBuffer()
+{
+    timer->stop();
+    QHttpMultiPart *multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
+
+    QHttpPart filePart;
+    filePart.setHeader(QNetworkRequest::ContentTypeHeader, QLatin1String("application/zip;"));
+    filePart.setHeader(QNetworkRequest::ContentDispositionHeader,
+                       QVariant(QString("form-data; name=\"file\"; filename=\"%1\"").arg(m_fileName)));
+
+//    QFile *file = new QFile(m_buffer);
+//    file->open(QIODevice::ReadOnly);
+//    filePart.setBodyDevice(file);
+//    file->setParent(multiPart);
+//    multiPart->append(filePart);
+
+    m_buffer->open(QIODevice::ReadOnly);
+    filePart.setBodyDevice(m_buffer);
+    m_buffer->setParent(multiPart);
+    multiPart->append(filePart);
+
+    QNetworkRequest request;
+    QUrl m_url = QUrl(QString(m_address));
+
+    QUrlQuery query;
+    if(!m_belongId.isEmpty())
+        query.addQueryItem("belongId", m_belongId);
+    if(!m_fileType.isEmpty())
+        query.addQueryItem("fileType", m_fileType);
+
+    m_url.setQuery(query);
+
+    request = requestSetRawHeader(request);
+
+    qDebug() << "服务器地址：" << m_url;
+
+    request.setUrl(m_url);
+
+    m_pReply = post(request, multiPart);
+    multiPart->setParent(m_pReply);
+    connect(m_pReply, SIGNAL(readyRead()), this, SLOT(readyRead()));
+//    connect(m_pReply, SIGNAL(uploadProgress(qint64,qint64)), this, SLOT(onUploadProgress(qint64,qint64)));
+    connect(m_pReply, &QNetworkReply::finished, [this]{
+        if(m_pReply != NULL) {
+            m_pReply->deleteLater();
+            m_pReply = 0;
+        }
+    });
+}
+
+void FileNetworkManager::stopWork()
+{
+    if(timer)
+        timer->stop();
+    if (m_pReply != NULL)
+    {
+        disconnect(this, SIGNAL(finished(QNetworkReply *)), this, SLOT(replyFinished(QNetworkReply *)));
+        disconnect(m_pReply, SIGNAL(uploadProgress(qint64,qint64)), this, SLOT(onUploadProgress(qint64,qint64)));
+        disconnect(m_pReply, SIGNAL(readyRead()), this, SLOT(readyRead()));
+        m_pReply->abort();
+        m_pReply->deleteLater();
+        m_pReply = NULL;
+    }
+    this->deleteLater();
 }
 
