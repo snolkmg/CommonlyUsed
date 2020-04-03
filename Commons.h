@@ -728,6 +728,16 @@ public:
         res += tmp;
         return res;
     }
+    
+    //查找乱码
+    static QStringList garbledList(QString text) {
+        QRegularExpression reg("([^\\x00-\\xff\\w`~!@#\\$%\\^&\\*\\(\\)_\\-\\+=<>?:\"{}|,.\\\\/;'\\[\\]·~！￥……（）——《》？：“”【】、；‘，。、])",
+                               QRegularExpression::MultilineOption | QRegularExpression::UseUnicodePropertiesOption);
+//        qDebug() << reg;
+        QStringList list = Commons::regGlobalMatch(reg, text);
+        list.removeDuplicates();
+        return list;
+    }
 };
 
 #endif // COMMONS_H
