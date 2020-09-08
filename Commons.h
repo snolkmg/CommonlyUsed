@@ -16,6 +16,20 @@ static QStringList cnList2 = QStringList() << QStringLiteral("十") << QStringLi
                                     << QStringLiteral("万") << QStringLiteral("亿") << QStringLiteral("兆");
 static QList<qint64> numList2 = QList<qint64>() << 10 << 100 << 1000 << 10000 << 100000000 << 1000000000000;
 
+static QStringList circleNumberList = QStringList()
+        << "①" << "②" << "③" << "④" << "⑤" << "⑥" << "⑦" << "⑧" << "⑨" << "⑩"
+        << "⑪" << "⑫" << "⑬" << "⑭" << "⑮" << "⑯" << "⑰" << "⑱" << "⑲" << "⑳"
+        << "㉑" << "㉒" << "㉓" << "㉔" << "㉕" << "㉖" << "㉗" << "㉘" << "㉙" << "㉚"
+        << "㉛" << "㉜" << "㉝" << "㉞" << "㉟" << "㊱" << "㊲" << "㊳" << "㊴" << "㊵"
+        << "㊶" << "㊷" << "㊸" << "㊹" << "㊺" << "㊻" << "㊼" << "㊽" << "㊾" << "㊿";
+
+static QStringList withinFiftyList = QStringList()
+        << "1" << "2" << "3" << "4" << "5" << "6" << "7" << "8" << "9" << "10"
+        << "11" << "12" << "13" << "14" << "15" << "16" << "17" << "18" << "19" << "20"
+        << "21" << "22" << "23" << "24" << "25" << "26" << "27" << "28" << "29" << "30"
+        << "31" << "32" << "33" << "34" << "35" << "36" << "37" << "38" << "39" << "40"
+        << "41" << "42" << "43" << "44" << "45" << "46" << "47" << "48" << "49" << "50";
+
 class Commons : public QObject
 {
     Q_OBJECT
@@ -149,6 +163,19 @@ public:
                                                     | QDir::NoSymLinks | QDir::AllDirs);
         foreach(QFileInfo file_info, info_list)
             list << file_info.absoluteFilePath();
+        return list;
+    }
+
+    //获取目标路径下所有目录
+    static QStringList getAllDirs(QString dirPath, QStringList list = QStringList())
+    {
+        list.append(dirPath);
+        QDir dir(dirPath);
+        QFileInfoList info_list = dir.entryInfoList(QDir::NoDotAndDotDot | QDir::NoSymLinks | QDir::AllDirs);
+        foreach(QFileInfo file_info, info_list) {
+            if(file_info.isDir())
+                list = getAllDirs(file_info.absoluteFilePath(), list);
+        }
         return list;
     }
 
@@ -728,7 +755,7 @@ public:
         res += tmp;
         return res;
     }
-    
+
     //查找乱码
     static QStringList garbledList(QString text) {
         QRegularExpression reg("([^\\x00-\\xff\\w`~!@#\\$%\\^&\\*\\(\\)_\\-\\+=<>?:\"{}|,.\\\\/;'\\[\\]·~！￥……（）——《》？：“”【】、；‘，。、])",
@@ -737,6 +764,55 @@ public:
         QStringList list = Commons::regGlobalMatch(reg, text);
         list.removeDuplicates();
         return list;
+    }
+
+    //列表平均分为n个子列表
+    template<class T>
+    static QList< QList<T> > subTList(QList<T> list, int n) {
+        QList< QList<T> > totalList;
+        if(list.size() <= n || n < 1) {
+            totalList << list;
+        } else {
+            while (list.size() > n) {
+                QList<T> subList = list.mid(0, n);
+                list = list.mid(n);
+                totalList << subList;
+            }
+            if(list.size() > 0)
+                totalList << list;
+        }
+        return totalList;
+    }
+
+    //Qt 数字转字符串，千分位分隔符
+    static QString numberToStr(int k) {
+        QString str = QString("%L1").arg(k);
+        return str;
+    }
+
+    //Qt 浮点数转字符串，千分位分隔符
+    static QString numberToStr(double k) {
+        QString str = QString("%L1").arg(k, 0, 'f', 0);
+        return str;
+    }
+
+    static QStringList initList(int k, QString arg = QString()) {
+        if(k < 1)
+            k = 1;
+        QStringList list;
+        for(int i = 0; i < k; i++)
+            list << arg;
+        return list;
+    }
+
+    //圈数字转普通数字
+    static QString circleToNumber(QString text, QString prefix = QString(), QString suffix = QString()) {
+        foreach (QString circleNum, circleNumberList) {
+            int index = circleNumberList.indexOf(circleNum);
+            if(text.contains(circleNum))
+                text.replace(circleNum, QString("%1%2%3").arg(prefix).arg(withinFiftyList.at(index)).arg(suffix));
+        }
+        return text;
     }
 };
 
