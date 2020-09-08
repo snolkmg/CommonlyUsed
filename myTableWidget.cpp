@@ -45,25 +45,27 @@ myTableWidget::myTableWidget(QWidget *parent) :
 //    connect(this, &myTableWidget::isTristate, cHeaderView, &CheckBoxHeaderView::getTristate);
 
     vScrollBar = this->verticalScrollBar();
-    connect(vScrollBar, &QScrollBar::valueChanged, this, &myTableWidget::onValueChanged);
+//    connect(vScrollBar, &QScrollBar::valueChanged, this, &myTableWidget::onScrollValueChanged);
 }
 
 void myTableWidget::contextMenuEvent(QContextMenuEvent *event)
 {
     QPoint point = event->pos();
-    qDebug() << "myTableWidget：" << point;
+//    qDebug() << "myTableWidget：" << point;
     QTableWidgetItem *item = itemAt(point);
     emit itemSender(item);
     event->accept();
 }
 
-void myTableWidget::onValueChanged(int value)
+void myTableWidget::onScrollValueChanged(int value)
 {
-    qDebug() << "滚动条：" << vScrollBar->minimum() << vScrollBar->maximum() << value;
+    Q_UNUSED(value)
+//    qDebug() << "滚动条：" << vScrollBar->minimum() << vScrollBar->maximum() << value;
 //    if(vScrollBar->maximum() - value < 10)
 //        scrollToBottom();
 }
 
+//设置单元格文本，是否居中
 QTableWidgetItem *myTableWidget::itemSetting(int row, int col, QString text, bool center)
 {
     QTableWidgetItem *item = new QTableWidgetItem(text);
@@ -73,6 +75,7 @@ QTableWidgetItem *myTableWidget::itemSetting(int row, int col, QString text, boo
     return item;
 }
 
+//删除所有列
 void myTableWidget::removeAllItems()
 {
     int count = this->rowCount();
@@ -80,6 +83,7 @@ void myTableWidget::removeAllItems()
         this->removeRow(0);
 }
 
+//获取第col列选中的item列表
 QList<QTableWidgetItem *> myTableWidget::checkedItems(int col)
 {
     QList<QTableWidgetItem *> items;
@@ -90,6 +94,7 @@ QList<QTableWidgetItem *> myTableWidget::checkedItems(int col)
     return items;
 }
 
+//根据第col列是否选中，来获取第id列的文本列表
 QStringList myTableWidget::checkedItemsList(int id, int col)
 {
     QStringList list;
@@ -100,6 +105,7 @@ QStringList myTableWidget::checkedItemsList(int id, int col)
     return list;
 }
 
+//根据特定一列spe的文本是否等于arg，来获取与其同一行的第col列的文本列表
 QStringList myTableWidget::speicalList(QString arg, int spe, bool ok, int col)
 {
     QStringList list;
@@ -115,6 +121,7 @@ QStringList myTableWidget::speicalList(QString arg, int spe, bool ok, int col)
     return list;
 }
 
+//第column列统计文本为arg的单元格数量
 int myTableWidget::countByArg(int column, QString arg)
 {
     int k = 0;
@@ -126,6 +133,7 @@ int myTableWidget::countByArg(int column, QString arg)
     return k;
 }
 
+//第column列查找文本为arg的单元格
 QTableWidgetItem * myTableWidget::findItemByArg(int column, QString arg)
 {
     QTableWidgetItem *item;
@@ -139,6 +147,7 @@ QTableWidgetItem * myTableWidget::findItemByArg(int column, QString arg)
     return item;
 }
 
+//统计第column列checked数量
 int myTableWidget::countChecked(int column)
 {
     int k = 0;
@@ -147,4 +156,54 @@ int myTableWidget::countChecked(int column)
             k++;
     }
     return k;
+}
+
+//判断第column列文本是否包含arg字符
+bool myTableWidget::containByCol(int column, QString arg)
+{
+    for(int i = 0; i < rowCount(); i++) {
+        if(this->item(i, column)->text() == arg)
+            return true;
+    }
+    return false;
+}
+
+//为所有单元格文本设置统一值（通常用于初始化）
+void myTableWidget::setAllItemText(QString arg)
+{
+    for(int i = 0; i < rowCount(); i++) {
+        for(int j = 0; j < columnCount(); j++)
+            itemSetting(i, j, arg);
+    }
+}
+
+//当前单元格文本复制到剪贴板
+QString myTableWidget::currentItemText()
+{
+    QTableWidgetItem *item = currentItem();
+    if(item) {
+        QString text = item->text();
+        if(text.isEmpty())
+            return "";
+        QClipboard *board = QApplication::clipboard();
+        board->setText(text);
+        return text;
+    }
+    return "";
+}
+
+//当前行指定列单元格文本复制到剪贴板
+QString myTableWidget::columnItemText(int column)
+{
+    QTableWidgetItem *cItem = currentItem();
+    QTableWidgetItem *item = this->item(cItem->row(), column);
+    if(item) {
+        QString text = item->text();
+        if(text.isEmpty())
+            return "";
+        QClipboard *board = QApplication::clipboard();
+        board->setText(text);
+        return text;
+    }
+    return "";
 }

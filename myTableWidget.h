@@ -24,13 +24,21 @@ public:
 
     int countChecked(int column = 0);
 
+    bool containByCol(int column, QString arg);
+
+    void setAllItemText(QString arg = QString());
+
+    QString currentItemText();
+
+    QString columnItemText(int column);
+
+public Q_SLOTS:
+    void onScrollValueChanged(int value);
+
 signals:
     void itemSender(QTableWidgetItem *item);
     void isTristate(bool tristate);
     void onItemSelectionChanged(Qt::CheckState state);
-
-private slots:
-    void onValueChanged(int value);
 
 protected:
     void contextMenuEvent(QContextMenuEvent *event);
