@@ -756,6 +756,87 @@ public:
         return res;
     }
 
+    //阿拉伯数字转中文数字
+    static QString numToCn(QString numStr) {
+        QRegularExpression reg("(\\d+)");
+        QString str = regMatch(reg, numStr);
+        if(str.isEmpty())
+            return QString("数字有误");
+        qint64 num = str.toLongLong();
+        if(num == 0)
+            return QString("数字过大");
+        QString text;
+        int k = 0;
+        qint64 size = num;
+        while (size /= 10000) {
+            k++;
+        }
+        QString temp = str;
+        QStringList list;
+        while (temp.size() > 4) {
+            QString temp1 = temp.mid(temp.size() - 4);
+            QString temp2 = temp.mid(0, temp.size() - 4);
+            temp = temp2;
+            list << temp1;
+        }
+        list << temp;
+        int count = list.size();
+        QString spe("0000");
+        if(count > 5)
+            return QString("数字有误");
+        text = list.at(0) == spe ? QString("零") : tenThousandToCn(list.at(0));
+        if(count > 1)
+            text = list.at(1) == spe ? QString("零%1").arg(text)
+                                     : QString("%1万%2").arg(tenThousandToCn(list.at(1))).arg(text);
+        if(count > 2)
+            text = list.at(2) == spe ? QString("零%1").arg(text)
+                                     : QString("%1亿%2").arg(tenThousandToCn(list.at(2))).arg(text);
+
+        if(count > 3)
+            text = list.at(3) == spe ? QString("零%1").arg(text)
+                                     : QString("%1兆%2").arg(tenThousandToCn(list.at(3))).arg(text);
+        if(count > 4)
+            text = list.at(4) == spe ? QString("零%1").arg(text)
+                                     : QString("%1京%2").arg(tenThousandToCn(list.at(4))).arg(text);
+        QRegularExpression reg1("(零)+$", QRegularExpression::MultilineOption);
+        QRegularExpression reg2("(零)+");
+        QRegularExpression reg3("^(一十)(.*?)$", QRegularExpression::MultilineOption);
+        text.replace(reg1, "").replace(reg2, QString("零")).replace(reg3, QString("十\\2"));
+        return text;
+    }
+
+    //阿拉伯数字转中文数字（一万以内）
+    static QString tenThousandToCn(QString numStr) {
+        int num = numStr.toInt();
+        if(num == 0)
+            return QString("零");
+        QString str = QString::number(num);
+        QString text;
+        QList<int> list;
+        for(int i = 0; i < str.size(); i++)
+            list.prepend(QString(str.at(i)).toInt());
+        text = cnList1.at(numList1.indexOf(list.at(0)));
+        if(list.size() > 1) {
+            QString temp = list.at(1) == 0 ? QString("零")
+                                           : cnList1.at(numList1.indexOf(list.at(1))) + QString("十");
+            text = text.prepend(temp);
+        }
+        if(list.size() > 2) {
+            QString temp = list.at(2) == 0 ? QString("零")
+                                           : cnList1.at(numList1.indexOf(list.at(2))) + QString("百");
+            text = text.prepend(temp);
+        }
+        if(list.size() > 3) {
+            QString temp = cnList1.at(numList1.indexOf(list.at(3))) + QString("千");
+            text = text.prepend(temp);
+        }
+        QRegularExpression reg("(零)+$", QRegularExpression::MultilineOption);
+        text.replace(reg, "");
+        if(numStr.startsWith("0"))
+            text = text.prepend("零");
+        return text;
+    }
+
     //查找乱码
     static QStringList garbledList(QString text) {
         QRegularExpression reg("([^\\x00-\\xff\\w`~!@#\\$%\\^&\\*\\(\\)_\\-\\+=<>?:\"{}|,.\\\\/;'\\[\\]·~！￥……（）——《》？：“”【】、；‘，。、])",
@@ -813,6 +894,131 @@ public:
                 text.replace(circleNum, QString("%1%2%3").arg(prefix).arg(withinFiftyList.at(index)).arg(suffix));
         }
         return text;
+    }
+
+    //Qt图片调整之亮度调节
+    static QImage adjustBrightness(QImage Img, int iBrightValue)
+    {
+        int red, green, blue;
+        int pixels = Img.width() * Img.height();
+        unsigned int *data = (unsigned int *)Img.bits();
+
+        for (int i = 0; i < pixels; ++i)
+        {
+            red= qRed(data[i])+ iBrightValue;
+            red = (red < 0x00) ? 0x00 : (red > 0xff) ? 0xff : red;
+            green= qGreen(data[i]) + iBrightValue;
+            green = (green < 0x00) ? 0x00 : (green > 0xff) ? 0xff : green;
+            blue= qBlue(data[i]) + iBrightValue;
+            blue =  (blue  < 0x00) ? 0x00 : (blue  > 0xff) ? 0xff : blue ;
+            data[i] = qRgba(red, green, blue, qAlpha(data[i]));
+        }
+
+        return Img;
+    }
+
+    //Qt图片调整之对比度调节
+    static QImage adjustContrast(QImage Img, int iContrastValue)
+    {
+        int pixels = Img.width() * Img.height();
+        unsigned int *data = (unsigned int *)Img.bits();
+
+        int red, green, blue, nRed, nGreen, nBlue;
+
+        if (iContrastValue > 0 && iContrastValue < 100)
+        {
+            float param = 1 / (1 - iContrastValue / 100.0) - 1;
+
+            for (int i = 0; i < pixels; ++i)
+            {
+                nRed = qRed(data[i]);
+                nGreen = qGreen(data[i]);
+                nBlue = qBlue(data[i]);
+
+                red = nRed + (nRed - 127) * param;
+                red = (red < 0x00) ? 0x00 : (red > 0xff) ? 0xff : red;
+                green = nGreen + (nGreen - 127) * param;
+                green = (green < 0x00) ? 0x00 : (green > 0xff) ? 0xff : green;
+                blue = nBlue + (nBlue - 127) * param;
+                blue = (blue < 0x00) ? 0x00 : (blue > 0xff) ? 0xff : blue;
+
+                data[i] = qRgba(red, green, blue, qAlpha(data[i]));
+            }
+        }
+        else
+        {
+            for (int i = 0; i < pixels; ++i)
+            {
+                nRed = qRed(data[i]);
+                nGreen = qGreen(data[i]);
+                nBlue = qBlue(data[i]);
+
+                red = nRed + (nRed - 127) * iContrastValue / 100.0;
+                red = (red < 0x00) ? 0x00 : (red > 0xff) ? 0xff : red;
+                green = nGreen + (nGreen - 127) * iContrastValue / 100.0;
+                green = (green < 0x00) ? 0x00 : (green > 0xff) ? 0xff : green;
+                blue = nBlue + (nBlue - 127) * iContrastValue / 100.0;
+                blue = (blue < 0x00) ? 0x00 : (blue > 0xff) ? 0xff : blue;
+
+                data[i] = qRgba(red, green, blue, qAlpha(data[i]));
+            }
+        }
+
+        return Img;
+    }
+
+    //Qt图片调整之饱和度调节
+    static QImage adjustSaturation(QImage Img, int iSaturateValue)
+    {
+        int red, green, blue, nRed, nGreen, nBlue;
+        int pixels = Img.width() * Img.height();
+        unsigned int *data = (unsigned int *)Img.bits();
+
+        float Increment = iSaturateValue/100.0;
+
+        float delta = 0;
+        float minVal, maxVal;
+        float L, S;
+        float alpha;
+
+        for (int i = 0; i < pixels; ++i)
+        {
+            nRed = qRed(data[i]);
+            nGreen = qGreen(data[i]);
+            nBlue = qBlue(data[i]);
+
+            minVal = std::min(std::min(nRed, nGreen), nBlue);
+            maxVal = std::max(std::max(nRed, nGreen), nBlue);
+            delta = (maxVal - minVal) / 255.0;
+            L = 0.5*(maxVal + minVal) / 255.0;
+            S = std::max(0.5*delta / L, 0.5*delta / (1 - L));
+
+            if (Increment > 0)
+            {
+                alpha = std::max(S, 1 - Increment);
+                alpha = 1.0 / alpha - 1;
+                red = nRed + (nRed - L*255.0)*alpha;
+                red = (red < 0x00) ? 0x00 : (red > 0xff) ? 0xff : red;
+                green = nGreen + (nGreen - L*255.0)*alpha;
+                green = (green < 0x00) ? 0x00 : (green > 0xff) ? 0xff : green;
+                blue = nBlue + (nBlue - L*255.0)*alpha;
+                blue = (blue < 0x00) ? 0x00 : (blue > 0xff) ? 0xff : blue;
+            }
+            else
+            {
+                alpha = Increment;
+                red = L*255.0 + (nRed - L * 255.0)*(1+alpha);
+                red = (red < 0x00) ? 0x00 : (red > 0xff) ? 0xff : red;
+                green = L*255.0 + (nGreen - L * 255.0)*(1+alpha);
+                green = (green < 0x00) ? 0x00 : (green > 0xff) ? 0xff : green;
+                blue = L*255.0 + (nBlue - L * 255.0)*(1+alpha);
+                blue = (blue < 0x00) ? 0x00 : (blue > 0xff) ? 0xff : blue;
+            }
+
+            data[i] = qRgba(red, green, blue, qAlpha(data[i]));
+        }
+
+        return Img;
     }
 };
 
