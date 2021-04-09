@@ -720,6 +720,7 @@ public:
         QList<qint64> nums;
         qint64 unit = 1;
         QString text = strReversed(str);
+        qDebug() << text;
         for(QString s : text) {
             if(cnList1.contains(s)) {
                 int k = cnList1.indexOf(s);
@@ -737,12 +738,15 @@ public:
             }
         }
 
-        if(unit == 10)
+        qDebug() << nums << unit;
+        if(unit == 10 && str.startsWith(cnList2.at(0)))
             nums.append(10);
+        qDebug() << nums << unit;
 
         qint64 tmp = 0;
         qint64 res = 0;
         QList<qint64> nums2 = strReversed(nums);
+        qDebug() << nums2;
         for(qint64 num : nums2) {
             if(num >= 10000 && num <=100000000) {
                 tmp *= num;
@@ -839,7 +843,7 @@ public:
 
     //查找乱码
     static QStringList garbledList(QString text) {
-        QRegularExpression reg("([^\\x00-\\xff\\w`~!@#\\$%\\^&\\*\\(\\)_\\-\\+=<>?:\"{}|,.\\\\/;'\\[\\]·~！￥……（）——《》？：“”【】、；‘，。、])",
+        QRegularExpression reg("([^\\x00-\\xff\\w`~!@#\\$%\\^&\\*\\(\\)_\\-\\+=<>?:\"{}|,.\\\\/;'\\[\\]·~！￥……（）——《》？：“”【】、；‘’，。、「」])",
                                QRegularExpression::MultilineOption | QRegularExpression::UseUnicodePropertiesOption);
 //        qDebug() << reg;
         QStringList list = Commons::regGlobalMatch(reg, text);
