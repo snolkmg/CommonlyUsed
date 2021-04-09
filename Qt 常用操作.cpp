@@ -1,4 +1,31 @@
 //Qt 常用操作
+#include <QtGlobal> 
+
+//系统平台
+#ifdef Q_OS_MAC // mac 
+#endif 
+
+#ifdef Q_OS_LINUX // linux 
+#endif 
+
+#ifdef Q_OS_WIN32 // win 
+#endif
+
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 6, 0))
+#include <QtWebEngineWidgets>
+#else
+#include <QtWebKitWidgets>
+#endif
+
+//Qt版本
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
+#include <QtWidgets>
+#else
+#include <QtGui>
+#endif
+
+//含有中文，前面一律加 u8
+u8"select *from text.case where name='张三'   "
 
 //pro 工程文件添加quazip链接库
 
@@ -33,6 +60,58 @@ include(NetworkManager/NetworkManager.pri)
 QProgressBar *progressBar = new QProgressBar();
 progressBar->setAlignment(Qt::AlignLeading | Qt::AlignLeft | Qt::AlignVCenter);
 
+//日志（不输出debug）
+void outputMessage(QtMsgType type, const QMessageLogContext &context, const QString &msg)
+{
+    static QMutex mutex;
+    mutex.lock();
+
+    QString text;
+    switch(type)
+    {
+    case QtDebugMsg:
+        text = QString("Debug:");
+        break;
+
+    case QtWarningMsg:
+        text = QString("Warning:");
+        break;
+
+    case QtCriticalMsg:
+        text = QString("Critical:");
+        break;
+
+    case QtFatalMsg:
+        text = QString("Fatal:");
+        break;
+    case QtInfoMsg:
+        text = QString("Info:");
+        break;
+    }
+
+    QString context_info = QString("File:(%1) Line:(%2)").arg(QString(context.file)).arg(context.line);
+    QString current_date_time = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss ddd");
+    QString message;
+    if(text != QString("Debug:"))
+        message = QString("%1 %2 %3 (%4)").arg(text).arg(context_info).arg(msg).arg(current_date_time);
+
+    if(!message.isEmpty()) {
+        QFile file(QStringLiteral("错误日志.log"));
+        file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text);
+        QTextStream text_stream(&file);
+        text_stream << message << endl;
+        file.flush();
+        file.close();
+    }
+
+    mutex.unlock();
+}
+
+qInstallMessageHandler(outputMessage);
+
+//设置配置文件名
+a.setOrganizationName("managementSystem");
+
 //main.cpp 加载翻译文件
 
     QTranslator tl;
@@ -42,6 +121,10 @@ progressBar->setAlignment(Qt::AlignLeading | Qt::AlignLeft | Qt::AlignVCenter);
     QTranslator tl2;
     tl2.load("://qt_zh_CN");
     a.installTranslator(&tl2);
+	
+
+//设置文件读写权限
+QFile::setPermissions(filePath, QFile::ReadOwner | QFile::WriteOwner);
 
 //选择文件
 private Q_SLOTS:
@@ -88,14 +171,16 @@ void readFile::onSelect()
     loadFiles(fileList);
 }
 
-void readFile::loadFile(const QString &filePath)
-{
-	//操作单文件……
-}
-
 void readFile::loadFiles(const QStringList &fileList)
 {
 	//操作多文件……
+//    QTime timeUp;
+//    timeUp.start();
+}
+
+void readFile::loadFile(const QString &filePath)
+{
+	//操作单文件……
 }
 
 void readFile::dragEnterEvent(QDragEnterEvent *event)
@@ -131,6 +216,12 @@ static QStringList pinYinList(QStringList list) {
     qStableSort(list.begin(), list.end(), collator);
 //    qDebug() << "顺序列表：" << list;
     return list;
+}
+
+void readFile::dragEnterEvent(QDragEnterEvent *event)
+{
+    if(event->mimeData()->hasUrls())
+        event->acceptProposedAction();
 }
 
 //拖放多文件
@@ -169,13 +260,11 @@ void tagScreenShot::writeText(QString text)
 void tagScreenShot::writeMsg(QString text, int msecs)
 {
     ui->plainTextEdit->appendPlainText(text);
-    msecs > 0 ? statusBar()->showMessage(text, msecs) : statusBar()->showMessage(text);
+    statusBar()->showMessage(text, msecs);
 }
 
 void tagScreenShot::timeConsuming(int msecs)
 {
-//    QTime timeUp;
-//    timeUp.start();
     double secs = msecs / 1000.0;
     QString timeStr = secs < 60 ? QString("%1 秒").arg(secs) : Commons::timeFormat((int)secs);
     writeText(QString("共计耗时 %1\n").arg(timeStr));
@@ -338,7 +427,7 @@ void itemReceiver(QTableWidgetItem *item)
     }
 }
 
-
+//QTableWidgetItem 设置图标
         ui->tableWidget->setRowCount(errorPairList.size());
         for(int i = 0; i < errorPairList.size(); i++) {
             auto pair = errorPairList.at(i);
@@ -364,6 +453,11 @@ void itemReceiver(QTableWidgetItem *item)
                 }
             }
         }
+
+//QTableWidgetItem 设置不可编辑	
+item->setFlags(item->flags() & (~Qt::ItemIsEnabled));
+//QTableWidgetItem 设置颜色
+item->setTextColor(Qt::blue);
 		
 //不解压读zip/epub
     QString ncxText;
@@ -433,3 +527,15 @@ QT += axcontainer
             return;
         }
     }
+	
+
+//Dialog show
+Dialog->setAttribute(Qt::WA_DeleteOnClose);
+
+QList<rotateDialog *> list = this->findChildren<rotateDialog *>();
+if(!list.isEmpty())
+    return;
+rotateDialog *rotateDlg = new rotateDialog(this);
+connect(rotateDlg, &rotateDialog::angleChanged, this, &tiltCorrection::onAngleChanged);
+rotateDlg->show();
+	
