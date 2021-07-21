@@ -538,4 +538,61 @@ if(!list.isEmpty())
 rotateDialog *rotateDlg = new rotateDialog(this);
 connect(rotateDlg, &rotateDialog::angleChanged, this, &tiltCorrection::onAngleChanged);
 rotateDlg->show();
-	
+
+//调用cmd
+private slots:
+    void onReadyReadStandardError();
+    void onReadyReadStandardOutput();
+    void onFinished(int exitCode, QProcess::ExitStatus exitStatus);
+
+
+void epubCheck::loadFile(QString filePath)
+{
+    ui->lineEdit->setText(filePath);
+    xmlHighlighter = new XmlSyntaxHighlighter(ui->plainTextEdit->document(), filePath);
+    statusBar()->showMessage(tr("正在检测epub……"));
+    ui->selectBtn->setEnabled(false);
+    ui->clearBtn->setEnabled(false);
+    QString jarFile = QString("%1/epubcheck/epubcheck.jar").arg(QDir::currentPath());
+    qDebug() << jarFile;
+    QProcess *proc = new QProcess(this);
+    QStringList list = QStringList(filePath);
+    proc->start(QString("java -jar \"%1\"").arg(jarFile), list);
+
+    connect(proc, &QProcess::readyReadStandardError, this, &epubCheck::onReadyReadStandardError);
+    connect(proc, &QProcess::readyReadStandardOutput, this, &epubCheck::onReadyReadStandardOutput);
+    connect(proc, SIGNAL(finished(int,QProcess::ExitStatus)), this, SLOT(onFinished(int,QProcess::ExitStatus)));
+ 	
+	//或者
+	proc->waitForStarted();
+    proc->waitForFinished();
+    QByteArray ba = proc->readAllStandardOutput();
+    qDebug() << ba.replace("\r", "").replace("\n", "");
+    ui->plainTextEdit->appendPlainText(QString(ba));
+}
+
+void epubCheck::onReadyReadStandardError()
+{
+    QProcess *proc = qobject_cast<QProcess *>(sender());
+    QByteArray ba = proc->readAllStandardError();
+    ba = Commons::codec1ToCodec2(ba, "GBK");
+    ui->plainTextEdit->appendPlainText(QString(ba));
+    ui->plainTextEdit->moveTextCursorEnd();
+}
+
+void epubCheck::onReadyReadStandardOutput()
+{
+    QProcess *proc = qobject_cast<QProcess *>(sender());
+    QByteArray ba = proc->readAllStandardOutput();
+    ba = Commons::codec1ToCodec2(ba, "GBK");
+    ui->plainTextEdit->appendPlainText(QString(ba));
+    ui->plainTextEdit->moveTextCursorEnd();
+}
+
+void epubCheck::onFinished(int exitCode, QProcess::ExitStatus exitStatus)
+{
+    qDebug() << exitCode << exitStatus;
+    statusBar()->showMessage(tr("检测完毕"), 10000);
+    ui->selectBtn->setEnabled(true);
+    ui->clearBtn->setEnabled(true);
+}
