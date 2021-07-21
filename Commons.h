@@ -166,6 +166,32 @@ public:
         return list;
     }
 
+    //获取当前路径下文件（含过滤）
+    static QStringList getCurrentFilesNoDir(QString dirPath, QStringList filters = QStringList())
+    {
+        QStringList list;
+        QDir dir(dirPath);
+        QFileInfoList info_list = dir.entryInfoList(filters, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot
+                                                    | QDir::NoSymLinks | QDir::AllDirs);
+        foreach(QFileInfo file_info, info_list)
+            if(file_info.isFile())
+                list << file_info.absoluteFilePath();
+        return list;
+    }
+
+    //获取当前路径下文件夹（含过滤）
+    static QStringList getCurrentDirs(QString dirPath, QStringList filters = QStringList())
+    {
+        QStringList list;
+        QDir dir(dirPath);
+        QFileInfoList info_list = dir.entryInfoList(filters, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot
+                                                    | QDir::NoSymLinks | QDir::AllDirs);
+        foreach(QFileInfo file_info, info_list)
+            if(file_info.isDir())
+                list << file_info.absoluteFilePath();
+        return list;
+    }
+
     //获取目标路径下所有目录
     static QStringList getAllDirs(QString dirPath, QStringList list = QStringList())
     {
@@ -397,7 +423,7 @@ public:
     static QStringList pinYinList(QStringList list) {
         QLocale cn(QLocale::Chinese);
         QCollator collator(cn);
-        qStableSort(list.begin(), list.end(), collator);
+        std::stable_sort(list.begin(), list.end(), collator);
 //        qDebug() << "顺序列表：" << list;
         return list;
     }
@@ -1023,6 +1049,21 @@ public:
         }
 
         return Img;
+    }
+
+    //文本转成html实体编号
+    static QString textEntity(QString str) {
+        QString text;
+        for(auto s : str) {
+           ushort i = s.unicode();
+           text += "&#" + QString::number(i);
+        }
+        return text;
+    }
+
+    //QString 转 std::string
+    std::string convertString(QString str) {
+        return str.toLocal8Bit().toStdString();
     }
 };
 
