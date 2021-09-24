@@ -1,0 +1,26 @@
+* {
+    font-family: Microsoft YaHei;
+}
+
+QStatusBar {
+    color: #0000ff;
+    font-size: 14px;
+}
+
+QProgressBar{
+    border: none;
+    color: #ffffff;
+    text-align: center;
+    background: #444549;
+    border-radius: 0px;
+}
+QProgressBar::chunk {
+    border: none;
+    background: #00A0E6;
+    border-radius: 0px;
+}
+
+QLineEdit[echoMode="2"] {
+    lineedit-password-character: 42;
+}
+
