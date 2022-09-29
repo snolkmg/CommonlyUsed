@@ -27,6 +27,15 @@
 //含有中文，前面一律加 u8
 u8"select *from text.case where name='张三'   "
 
+include(Commons/Commons.pri)
+include(SaveLog/SaveLog.pri)
+
+DESTDIR = bin #生成目标的路径
+MOC_DIR = bin/moc #指定moc命令将含Q_OBJECT的头文件转换成标准.h文件的存放目录
+OBJECTS_DIR = bin/obj #指定目标文件(obj)的存放目录
+RCC_DIR = bin/qrc #指定rcc命令将.qrc文件转换成qrc_*.h文件的存放目录
+UI_DIR = bin/ui #指定uic命令将.ui文件转化成ui_*.h文件的存放的目录
+
 //pro 工程文件添加quazip链接库
 
 win32:CONFIG(release, debug|release): LIBS += -L$$PWD/quazip/lib/ -lquazip
@@ -59,6 +68,18 @@ include(NetworkManager/NetworkManager.pri)
 //进度条文字居中
 QProgressBar *progressBar = new QProgressBar();
 progressBar->setAlignment(Qt::AlignLeading | Qt::AlignLeft | Qt::AlignVCenter);
+
+include(../../Utils/Commons/Commons.pri)
+INCLUDEPATH += ../../Utils/Commons
+
+include(../../Utils/SaveLog/SaveLog.pri)
+INCLUDEPATH += ../../Utils/SaveLog
+
+win32:CONFIG(release, debug|release): LIBS += -L$$PWD/../../Utils/quazip/lib/ -llibquazip1-qt5
+else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/../../Utils/quazip/lib/ -llibquazip1-qt5d
+
+INCLUDEPATH += $$PWD/../../Utils/quazip/include
+DEPENDPATH += $$PWD/../../Utils/quazip/include
 
 //日志（不输出debug）
 void outputMessage(QtMsgType type, const QMessageLogContext &context, const QString &msg)
@@ -126,16 +147,43 @@ a.setOrganizationName("managementSystem");
 //设置文件读写权限
 QFile::setPermissions(filePath, QFile::ReadOwner | QFile::WriteOwner);
 
+// 设置文件读写权限
+bool CommonsQt::setFilePermissions(QString filePath)
+{
+    QFileDevice::Permissions flags =
+            QFileDevice::ReadOwner | QFileDevice::WriteOwner
+            | QFileDevice::ReadUser | QFileDevice::WriteUser
+            | QFileDevice::ReadGroup | QFileDevice::WriteGroup
+            | QFileDevice::ReadOther | QFileDevice::WriteOther;
+    return QFile::setPermissions(filePath, flags);
+}
+
+
+#include "Commons.h"
+#include "savelog.h"
+#include "highlighter.h"
+
+#include "JlCompress.h"
+
+#include "compressEpub.h"
+
+#pragma execution_character_set("utf-8")
+
 //选择文件
 private Q_SLOTS:
     void onSelect();
 
 private:
+    void setSaveLog();
     QString lastPath;
-    void loadFile(const QString &filePath);
+    Highlighter *highlighter;
     void loadFiles(const QStringList &fileList);
+    void loadFile(const QString &filePath);
+	
+	void startFiles();
 	
 	void writeText(QString text);
+    void writeText(qint64 value);
     void writeMsg(QString text, int msecs = 10000);
     void timeConsuming(int msecs);
 
@@ -144,10 +192,32 @@ protected:
     void dropEvent(QDropEvent *event);
 
 setAcceptDrops(true);
+ui->plainTextEdit->setAcceptDrops(false);
 connect(ui->selectBtn, &QPushButton::clicked, this, &readEpub::onSelect);
-connect(ui->selectAct, &QAction::triggered, this, &batReadEpub::onSelect);
+connect(ui->selectAct, &QAction::triggered, this, &readFile::onSelect);
 setStyleSheet(QString("font-family: Microsoft Yahei;"));
 statusBar()->setStyleSheet(QString("color: blue; font-size: 14px;"));
+highlighter = new Highlighter(ui->plainTextEdit->document());
+setSaveLog();
+startFiles();
+
+void readFile::setSaveLog()
+{
+    SaveLog::Instance()->setMaxRow(0);
+    SaveLog::Instance()->setMaxSize(0);
+    SaveLog::Instance()->setUseContext(true);
+    SaveLog::Instance()->setPath(QString("%1/logs").arg(qApp->applicationDirPath()));
+    SaveLog::Instance()->start();
+}
+
+void readFile::startFiles()
+{
+    QStringList fileList = QCoreApplication::arguments();
+    if(fileList.size() < 2)
+        return;
+    fileList = fileList.mid(1);
+    loadFiles(fileList);
+}
 
 void readFile::onSelect()
 {
@@ -174,13 +244,44 @@ void readFile::onSelect()
 void readFile::loadFiles(const QStringList &fileList)
 {
 	//操作多文件……
-//    QTime timeUp;
-//    timeUp.start();
+    QTime timeUp;
+    timeUp.start();
+    statusBar()->showMessage(u8"开始……");
+
+    foreach (QString filePath, fileList)
+        loadFile(filePath);
+
+    statusBar()->showMessage(u8"完毕", 10000);
+    timeConsuming(timeUp.elapsed());
 }
 
 void readFile::loadFile(const QString &filePath)
 {
 	//操作单文件……
+}
+
+void readFile::writeText(QString text)
+{
+    ui->plainTextEdit->appendPlainText(text);
+}
+
+void readFile::writeText(qint64 value)
+{
+    ui->plainTextEdit->appendPlainText(QString::number(value));
+}
+
+void readFile::writeMsg(QString text, int msecs)
+{
+    ui->plainTextEdit->appendPlainText(text);
+    statusBar()->showMessage(text, msecs);
+}
+
+void readFile::timeConsuming(int msecs)
+{
+    double secs = msecs / 1000.0;
+    QString timeStr = secs < 60 ? QString("%1 秒").arg(secs)
+                                : Commons::timeFormat(static_cast<int>(secs));
+    writeText(QString("共计耗时 %1\n").arg(timeStr));
 }
 
 void readFile::dragEnterEvent(QDragEnterEvent *event)
@@ -228,46 +329,24 @@ void readFile::dragEnterEvent(QDragEnterEvent *event)
 void readFile::dropEvent(QDropEvent *event)
 {
     const QMimeData *mime = event->mimeData();
-	QList<QUrl> duplicates;
+    QList<QUrl> duplicates;
     QStringList fileList;
 
-    foreach (QUrl url, mime->urls())
-    {
+    foreach (QUrl url, mime->urls()) {
         if (duplicates.contains(url))
             continue;
         else
             duplicates << url;
-        QString fileName(url.toLocalFile());
-        QFileInfo fi(fileName);
+        QString filePath(url.toLocalFile());
+        QFileInfo fi(filePath);
         if(fi.isFile())
-            fileList << fi.absoluteFilePath();
+            fileList << filePath;
     }
-
-    //qStableSort(fileList.begin(), fileList.end());
-    qDebug() << "拖放文件列表：" << fileList;
     fileList = Commons::pinYinList(fileList);
 
     if(fileList.isEmpty())
         return;
     loadFiles(fileList);
-}
-
-void tagScreenShot::writeText(QString text)
-{
-    ui->plainTextEdit->appendPlainText(text);
-}
-
-void tagScreenShot::writeMsg(QString text, int msecs)
-{
-    ui->plainTextEdit->appendPlainText(text);
-    statusBar()->showMessage(text, msecs);
-}
-
-void tagScreenShot::timeConsuming(int msecs)
-{
-    double secs = msecs / 1000.0;
-    QString timeStr = secs < 60 ? QString("%1 秒").arg(secs) : Commons::timeFormat((int)secs);
-    writeText(QString("共计耗时 %1\n").arg(timeStr));
 }
 
 public Q_SLOTS:
@@ -314,8 +393,8 @@ void setTableWidget()
 
     ui->tableWidget->verticalHeader()->setVisible(true);
 
-    connect(ui->tableWidget, &myTableWidget::itemSender, this, &itemReceiver);
-    connect(ui->tableWidget, &myTableWidget::itemDoubleClicked, this, &onOPenFile);
+    connect(ui->tableWidget, &myTableWidget::itemSender, this, &readEpub::itemReceiver);
+    connect(ui->tableWidget, &myTableWidget::itemDoubleClicked, this, &readEpub::onOPenFile);
 }
 
 void createContextMenu()
@@ -326,10 +405,10 @@ void createContextMenu()
     openFileAct = new QAction(tr("打开文件"), this);
     openFolderAct = new QAction(tr("打开所在文件夹"), this);
 
-    connect(copyTextAct, &QAction::triggered, this, &onCopyText);
-    connect(copyPathAct, &QAction::triggered, this, &onCopyPath);
-    connect(openFileAct, &QAction::triggered, this, &onOPenFile);
-    connect(openFolderAct, &QAction::triggered, this, &onOpenFolder);
+    connect(copyTextAct, &QAction::triggered, this, &readEpub::onCopyText);
+    connect(copyPathAct, &QAction::triggered, this, &readEpub::onCopyPath);
+    connect(openFileAct, &QAction::triggered, this, &readEpub::onOPenFile);
+    connect(openFolderAct, &QAction::triggered, this, &readEpub::onOpenFolder);
 }
 
 //当前单元格文本复制到剪贴板
@@ -364,7 +443,7 @@ QString myTableWidget::columnItemText(int column)
 }
 
 //复制当前单元格文本
-void onCopyText()
+void readEpub::onCopyText()
 {
     QString text = ui->tableWidget->currentItemText();
     if(!text.isEmpty())
@@ -372,7 +451,7 @@ void onCopyText()
 }
 
 //复制当前文件路径
-void onCopyPath()
+void readEpub::onCopyPath()
 {
     QString text = ui->tableWidget->columnItemText(1);
     if(!text.isEmpty())
@@ -380,7 +459,7 @@ void onCopyPath()
 }
 
 //打开文件
-void onOPenFile()
+void readEpub::onOPenFile()
 {
     QTableWidgetItem *item = ui->tableWidget->currentItem();
     QString fileName = ui->tableWidget->item(item->row(), 0)->text();
@@ -393,11 +472,55 @@ void onOPenFile()
 }
 
 //打开文件所在文件夹
-void onOpenFolder()
+void readEpub::onOpenFolder()
 {
     QTableWidgetItem *item = ui->tableWidget->currentItem();
     QString fileName = ui->tableWidget->item(item->row(), 0)->text();
     QString filePath = ui->tableWidget->item(item->row(), 1)->text();
+    if(!QFile::exists(filePath)) {
+        statusBar()->showMessage(tr("%1 文件不存在").arg(fileName), 10000);
+        return;
+    }
+    filePath.replace("/", "\\");
+    QProcess proc(this);
+    QString cmd("explorer.exe");
+    QStringList argList;
+    argList << QString("/select,") << filePath;
+    qDebug() << "打开文件：" << cmd << argList;
+    proc.startDetached(cmd, argList);
+}
+
+    void openCurrentFile(QString filePath);
+    void openCurrentFolder(QString filePath);
+
+//打开文件
+void countQingJian::onOPenFile()
+{
+    QTableWidgetItem *item = ui->tableWidget->currentItem();
+    QString filePath = ui->tableWidget->item(item->row(), 1)->text();
+    openCurrentFile(filePath);
+}
+
+void countQingJian::openCurrentFile(QString filePath)
+{
+    QString fileName = QFileInfo(filePath).fileName();
+    QByteArray ba = QUrl::toPercentEncoding(filePath);
+    bool ok = QDesktopServices::openUrl(QUrl(QString("file:///%1").arg(QString(ba))));
+    if(!ok)
+        statusBar()->showMessage(tr("%1 文件不存在").arg(fileName), 10000);
+}
+
+//打开文件所在文件夹
+void countQingJian::onOpenFolder()
+{
+    QTableWidgetItem *item = ui->tableWidget->currentItem();
+    QString filePath = ui->tableWidget->item(item->row(), 1)->text();
+    openCurrentFolder(filePath);
+}
+
+void countQingJian::openCurrentFolder(QString filePath)
+{
+    QString fileName = QFileInfo(filePath).fileName();
     if(!QFile::exists(filePath)) {
         statusBar()->showMessage(tr("%1 文件不存在").arg(fileName), 10000);
         return;
@@ -409,9 +532,9 @@ void onOpenFolder()
     proc.startDetached(cmd);
 }
 
-void itemReceiver(QTableWidgetItem *item)
+void readEpub::itemReceiver(QTableWidgetItem *item)
 {
-    QTableWidget *myTable = (QTableWidget *)sender();
+    QTableWidget *myTable = qobject_cast<QTableWidget *>(sender());
     popMenu->clear();
     QString objName = myTable->objectName();
 
@@ -481,6 +604,8 @@ item->setTextColor(Qt::blue);
 include(3rdparty/qtxlsx/src/xlsx/qtxlsx.pri)
 
 //读xlsx
+    QFileInfo info(filePath);
+    QString fileName = info.fileName();
     QXlsx::Document xlsx(filePath);
     QXlsx::CellRange cellRange = xlsx.dimension();
     int row_count = cellRange.rowCount();
@@ -596,3 +721,129 @@ void epubCheck::onFinished(int exitCode, QProcess::ExitStatus exitStatus)
     ui->selectBtn->setEnabled(true);
     ui->clearBtn->setEnabled(true);
 }
+
+    int officialRow;
+    int noOfficialRow;
+    int boxRow;
+    int dossierRow;
+
+    void writeIni();
+    void readIni();
+	
+    void closeEvent(QCloseEvent *event);
+
+// 读取配置文件
+void countQingJian::readIni()
+{
+    QDir dir = QDir::current().absoluteFilePath("config");
+    if(!dir.exists())
+        QDir::current().mkdir("config");
+
+    QString configPath = dir.absoluteFilePath("config.ini");
+    if(!QFile::exists(configPath)) {
+        officialRow = 3;
+        noOfficialRow = 3;
+        boxRow = 4;
+        dossierRow = 3;
+    } else {
+        QSettings settings(configPath, QSettings::IniFormat);
+        settings.setIniCodec("UTF-8");
+        officialRow = settings.value("catalog/official_row").toInt();
+        noOfficialRow = settings.value("catalog/no_official_row").toInt();
+        boxRow = settings.value("catalog/box_row").toInt();
+        dossierRow = settings.value("catalog/dossier_row").toInt();
+    }
+    ui->officialSpinBox->setValue(officialRow);
+    ui->noOfficialSpinBox->setValue(noOfficialRow);
+    ui->boxSpinBox->setValue(boxRow);
+    ui->dossierSpinBox->setValue(dossierRow);
+}
+
+// 写入配置文件
+void countQingJian::writeIni()
+{
+    QDir dir = QDir::current().absoluteFilePath("config");
+    if(!dir.exists())
+        QDir::current().mkdir("config");
+
+    QString configPath = dir.absoluteFilePath("config.ini");
+    QSettings settings(configPath, QSettings::IniFormat);
+    settings.setIniCodec("UTF-8");
+    settings.beginGroup(QString("catalog"));
+    settings.setValue(QString("official_row"), officialRow);
+    settings.setValue(QString("no_official_row"), noOfficialRow);
+    settings.setValue(QString("box_row"), boxRow);
+    settings.setValue(QString("dossier_row"), dossierRow);
+    settings.endGroup();
+}
+
+void countQingJian::closeEvent(QCloseEvent *event)
+{
+    writeIni();
+    event->accept();
+}
+
+    QFileInfo file_info(filePath);
+    QFileIconProvider icon_provider;
+    QIcon icon = icon_provider.icon(file_info);
+	
+    QFileIconProvider icon_provider;
+    QIcon icon = icon_provider.icon(QFileIconProvider::Folder);
+	
+	QFileIconProvider::Computer
+	QFileIconProvider::Desktop
+	QFileIconProvider::Trashcan
+	QFileIconProvider::Network
+	QFileIconProvider::Drive
+	QFileIconProvider::Folder
+	QFileIconProvider::File
+	
+
+// 辗转相除法求两个数的最大公约数
+int simplegcd(int a, int b) {
+    return b == 0 ? a : simplegcd(b, a % b);
+}
+
+// 最小公倍数 = 两数之积除以最大公约数
+int simplelcm(int a, int b) {
+	return a * b / simplegcd(a, b);
+}
+
+QImage imageFromPath(QString imagePath)
+{
+    QImageReader imageReader(imagePath);
+    imageReader.setAutoTransform(true);
+    imageReader.setDecideFormatFromContent(true);
+    QImage image = imageReader.read();
+    return image;
+}
+
+// Qt 屏蔽输入法
+QLineEdit lineEditPwd;
+lineEditPwd.setAttribute(Qt::WA_InputMethodEnabled, false); 
+
+密码框过滤：[a-zA-Z0-9@#\$%\^&\*\(\)~!\{\}:\"<>\?_+\|`\[\];',\.\/\-\=\\]
+// 设置密码输入框
+static void setPwdEdit(QLineEdit *edit)
+{
+    edit->setAttribute(Qt::WA_InputMethodEnabled, false);
+    QRegularExpression reg("[a-zA-Z0-9@#\\$%\\^&\\*\\(\\)~!\\{\\}:\"<>\\?_\\+\\|`\\[\\];',\\.\\/\\-=\\\\]+");
+    edit->setValidator(new QRegularExpressionValidator(reg));
+}
+
+// winrar解压缩
+QString rarPath = QDir::current().absoluteFilePath("Rar.exe");
+if(!QFile::exists(rarPath)) {
+	ui->plainTextEdit->appendPlainText(tr("%1 提取epub文件失败（未检测到rar.exe文件）").arg(fileName));
+} else {
+	QStringList list;
+	list << "e" << "-or" << "-ibck" << filePath << "*.epub" << epubDir.path();
+	QProcess::startDetached(rarPath, list);
+}
+
+// 获取文件类型/图标
+QMimeDatabase mimeDatabase;
+QMimeType mimeType = mimeDatabase.mimeTypeForFile(filePath);
+const QString &type = mimeType.name();
+const QString &comment = mimeType.comment();
+const QIcon &fileIcon = QIcon::fromTheme(mimeType.iconName(), QIcon::fromTheme(mimeType.genericIconName()));
