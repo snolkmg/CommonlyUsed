@@ -201,6 +201,12 @@ highlighter = new Highlighter(ui->plainTextEdit->document());
 setSaveLog();
 startFiles();
 
+// 设置窗体（常用于QDialog）最大化和最小化
+Qt::WindowFlags windowFlag  = Qt::Dialog;
+windowFlag                  |= Qt::WindowMinMaxButtonsHint;
+windowFlag                  |= Qt::WindowCloseButtonHint;
+setWindowFlags(windowFlag);
+
 void readFile::setSaveLog()
 {
     SaveLog::Instance()->setMaxRow(0);
@@ -400,7 +406,7 @@ void setTableWidget()
 void createContextMenu()
 {
     popMenu = new QMenu(tr("右键菜单"),  this);
-    copyTextAct = new QAction(tr("复制文本"), this);;
+    copyTextAct = new QAction(tr("复制文本"), this);
     copyPathAct = new QAction(tr("复制文件路径"), this);
     openFileAct = new QAction(tr("打开文件"), this);
     openFolderAct = new QAction(tr("打开所在文件夹"), this);
@@ -847,3 +853,28 @@ QMimeType mimeType = mimeDatabase.mimeTypeForFile(filePath);
 const QString &type = mimeType.name();
 const QString &comment = mimeType.comment();
 const QIcon &fileIcon = QIcon::fromTheme(mimeType.iconName(), QIcon::fromTheme(mimeType.genericIconName()));
+
+// lambda传值可修改
+std::function<int(int)> foo{[kk](int x) mutable {
+    kk.push_back(1);
+    return kk[0]+1;
+}};
+
+
+void imagePreviewDialog::keyPressEvent(QKeyEvent *event)
+{
+    Qt::KeyboardModifiers modifier = event->modifiers();
+    bool ctrl = modifier == Qt::ControlModifier;
+    if(ctrl) {
+        if(event->key() == Qt::Key_1)
+            graphicsWidget->fitPageSize();
+        if(event->key() == Qt::Key_2)
+            graphicsWidget->fitPageWith();
+        if(event->key() == Qt::Key_3)
+            graphicsWidget->originalSize();
+    } else {
+        if(event->key() == Qt::Key_Escape)
+            close();
+    }
+    event->accept();
+}
