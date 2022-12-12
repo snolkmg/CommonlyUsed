@@ -1,0 +1,6 @@
+INCLUDEPATH += QtCRC32
+
+SOURCES += $$PWD/QtCRC32.cpp
+
+HEADERS += $$PWD/CRC.h \
+    $$PWD/QtCRC32.h
