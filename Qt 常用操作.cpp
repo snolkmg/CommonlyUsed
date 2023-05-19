@@ -24,8 +24,19 @@
 #include <QtGui>
 #endif
 
+// 乱码问题
+#include <windows.h>
+SetConsoleOutputCP(codePage);
+其中codePage为代码页，常见取值为CP_UTF8，代表UTF-8编码。
+
+如果编译器用的是MSVC，需要在pro文件内加入 QMAKE_CXXFLAGS += /utf-8
+
 //含有中文，前面一律加 u8
 u8"select *from text.case where name='张三'   "
+
+ properties="duokan-page-fullscreen"
+
+pyinstaller -F -w --icon="logo3.ico" 文件名.py
 
 include(Commons/Commons.pri)
 include(SaveLog/SaveLog.pri)
@@ -69,6 +80,8 @@ include(NetworkManager/NetworkManager.pri)
 QProgressBar *progressBar = new QProgressBar();
 progressBar->setAlignment(Qt::AlignLeading | Qt::AlignLeft | Qt::AlignVCenter);
 
+CONFIG += c++11
+
 include(../../Utils/Commons/Commons.pri)
 INCLUDEPATH += ../../Utils/Commons
 
@@ -80,6 +93,44 @@ else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/../../Utils/quazip/lib/
 
 INCLUDEPATH += $$PWD/../../Utils/quazip/include
 DEPENDPATH += $$PWD/../../Utils/quazip/include
+
+// 静态链接库
+QMAKE_CFLAGS_DEBUG += -MTd
+QMAKE_CXXFLAGS_DEBUG += -MTd
+
+QMAKE_CFLAGS_RELEASE += -MT
+QMAKE_CXXFLAGS_RELEASE += -MT
+
+QMAKE_LFLAGS +=/NODEFAULTLIB:msvcrt
+
+// 应用程序单例:
+include(../../Utils/SingleApplication/singleapplication.pri)
+DEFINES += QAPPLICATION_CLASS=QApplication  // QWidget
+或
+DEFINES += QAPPLICATION_CLASS=QCoreApplication // Console
+
+// pro里判断当前编译模式
+CONFIG += debug_and_release
+CONFIG(debug, debug|release){
+    contains(DEFINES, WIN64) {
+    TARGET = ../../_debug64/AppName
+    } else {
+    TARGET = ../../_debug32/AppName
+    }
+} else {
+    contains(DEFINES, WIN64) {
+    TARGET = ../../_release64/AppName
+    } else {
+    TARGET = ../../_release32/AppName
+    }
+}
+
+// 代码里判断当前编译模式
+#ifdef QT_NO_DEBUG
+    qDebug() << "release mode";
+#else
+    qDebug() << "debug mode";
+#endif
 
 //日志（不输出debug）
 void outputMessage(QtMsgType type, const QMessageLogContext &context, const QString &msg)
@@ -158,6 +209,22 @@ bool CommonsQt::setFilePermissions(QString filePath)
     return QFile::setPermissions(filePath, flags);
 }
 
+// lambda函数
+	QPushButton *btn2 = new QPushButton;
+	btn2->move(0,0);
+	btn2->setParent(this);
+	btn2->setText("aaa");
+
+	[=](){
+	   btn2->setText("bbb");
+	}();
+
+    auto intToString = [=](QList<int> intList) -> QStringList {
+        QStringList strList;
+        for(auto i : intList)
+            strList << QString::number(i);
+        return strList;
+    };
 
 #include "Commons.h"
 #include "savelog.h"
@@ -238,9 +305,9 @@ void readFile::onSelect()
 	
 	//选择多文件
 	QStringList fileList = QFileDialog::getOpenFileNames(this,
-                                                         tr("选择文件"),
+                                                         tr("选择epub文件"),
                                                          lastPath,
-                                                         tr("zip文件(*.zip);;所有文件(*.*)"));
+                                                         tr("epub文件(*.epub);;所有文件(*.*)"));
     if(fileList.isEmpty())
         return;
 
@@ -877,4 +944,121 @@ void imagePreviewDialog::keyPressEvent(QKeyEvent *event)
             close();
     }
     event->accept();
+}
+
+//MAC地址
+QString LoginWindow::addressMAC()
+{
+    QString macAddress;
+    foreach (QNetworkInterface netInterface, QNetworkInterface::allInterfaces())
+    {
+        if(netInterface.isValid()
+                && netInterface.flags().testFlag(QNetworkInterface::IsUp)
+                && netInterface.flags().testFlag(QNetworkInterface::IsRunning)
+                && netInterface.flags().testFlag(QNetworkInterface::CanBroadcast)
+                && netInterface.flags().testFlag(QNetworkInterface::CanMulticast)
+                && !netInterface.flags().testFlag(QNetworkInterface::IsLoopBack)
+                && netInterface.hardwareAddress() != "00:50:56:C0:00:01"
+                && netInterface.hardwareAddress() != "00:50:56:C0:00:08"
+                && (netInterface.humanReadableName().contains("WLAN", Qt::CaseInsensitive)
+                    || netInterface.humanReadableName().contains("以太网")
+                    || netInterface.humanReadableName().contains("ethernet")
+                    || netInterface.humanReadableName().contains("无线")
+                    || netInterface.humanReadableName().contains("本地连接"))
+                && !netInterface.humanReadableName().contains("VMware", Qt::CaseInsensitive)
+                && !netInterface.humanReadableName().contains("VirtualBox", Qt::CaseInsensitive)
+                && !netInterface.humanReadableName().contains("isatap", Qt::CaseInsensitive)
+                && !netInterface.humanReadableName().contains("Loopback", Qt::CaseInsensitive)
+                && !netInterface.humanReadableName().contains("Teredo", Qt::CaseInsensitive)) {
+            QList<QNetworkAddressEntry> entryList = netInterface.addressEntries();
+
+            QHostAddress addr;
+            //遍历每一个IP地址(每个包含一个IP地址，一个子网掩码和一个广播地址)
+            foreach(QNetworkAddressEntry entry, entryList) {
+                QHostAddress address = entry.ip();
+                if (address != QHostAddress::LocalHost
+                        && address.protocol() == QAbstractSocket::IPv4Protocol
+                        && address.toString().startsWith("192.168"))
+                    addr = address;
+            }
+            if(!addr.isNull())
+                macAddress = netInterface.hardwareAddress();
+        }
+    }
+    return macAddress;
+}
+// 从剪贴板获取 来源：1.复制文件；2.复制图片
+void imageColorExtraction::onMimePasted()
+{
+    QClipboard *board = QApplication::clipboard();
+    const QMimeData * mimeData = board->mimeData();
+    if(mimeData->hasUrls()) {
+        QString filePath;
+        foreach (QUrl url, mimeData->urls()) {
+            QString path(url.toLocalFile());
+            QFileInfo fi(path);
+            if(fi.isFile() && m_imgFmtList.contains("*." + fi.suffix().toLower())) {
+                filePath = path;
+                break;
+            }
+        }
+        if(filePath.isEmpty())
+            return;
+        loadImage(filePath);
+    } else if(mimeData->hasImage()) {
+        QImage image = board->image();
+        if(image.isNull())
+            return;
+        graphicsWidget->showImage(image);
+        QString pixel = pixelText(image);
+        QString title = QString("图片来自剪贴板 | %1 - 色彩提取").arg(pixel);
+        setWindowTitle(title);
+        setColorCube(image);
+        mImage = image;
+    }
+}
+
+// 图片保存
+void imageColorExtraction::onImageSaved()
+{
+    if(mImage.isNull())
+        return;
+    QDir dir = QCoreApplication::applicationDirPath();
+    QString name = "save";
+    QDir saveDir = dir.absoluteFilePath(name);
+    if(!saveDir.exists())
+        dir.mkdir(name);
+    QString currentTime = QDateTime::currentDateTime().toString("yyyyMMddhhmmss");
+    QString imageName = QString("ICM_%1.png").arg(currentTime);
+    QString imagePath = saveDir.absoluteFilePath(imageName);
+    mImage.save(imagePath);
+}
+
+// 图片另存为
+void imageColorExtraction::onImageSavedAs()
+{
+    QString filter = QString("PNG(*.png);;JPEG(*.jpg *.jpeg);;BMP(*.bmp)");
+    QString currentTime = QDateTime::currentDateTime().toString("yyyyMMddhhmmss");
+    QString imageName = QString("ICM_%1.png").arg(currentTime);
+    QString imagePath = QFileDialog::getSaveFileName(this,
+                                                    "图片另存为",
+                                                    imageName,
+                                                    filter);
+    if(imagePath.isEmpty())
+        return;
+    mImage.save(imagePath);
+}
+
+// QLayoutItem 在 QLayout 中的索引（Qt5.12之下）
+int indexOfLayout(QLayout *layout, QLayoutItem *layoutItem)
+{
+    int i = 0;
+    QLayoutItem *item = layout->itemAt(i);
+    while (item) {
+        if (item == layoutItem)
+            return i;
+        ++i;
+        item = layout->itemAt(i);
+    }
+    return -1;
 }
