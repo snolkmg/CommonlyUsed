@@ -24,6 +24,8 @@
 #include <QtGui>
 #endif
 
+CONFIG += utf8_source
+
 // 乱码问题
 #include <windows.h>
 SetConsoleOutputCP(codePage);
@@ -93,6 +95,21 @@ else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/../../Utils/quazip/lib/
 
 INCLUDEPATH += $$PWD/../../Utils/quazip/include
 DEPENDPATH += $$PWD/../../Utils/quazip/include
+
+include(../../Utils/CommonsLite/CommonsLite.pri)
+INCLUDEPATH += ../../Utils/CommonsLite
+
+include(../../Utils/MakePath/MakePath.pri)
+INCLUDEPATH += ../../Utils/MakePath
+
+include(../../Utils/translation/translation.pri)
+INCLUDEPATH += ../../Utils/translation
+
+include(../../Utils/SaveLog/SaveLog.pri)
+INCLUDEPATH += ../../Utils/SaveLog
+
+include(../../Utils/SingleApplication/singleapplication.pri)
+DEFINES += QAPPLICATION_CLASS=QApplication
 
 // 静态链接库
 QMAKE_CFLAGS_DEBUG += -MTd
@@ -210,25 +227,62 @@ bool CommonsQt::setFilePermissions(QString filePath)
 }
 
 // lambda函数
-	QPushButton *btn2 = new QPushButton;
-	btn2->move(0,0);
-	btn2->setParent(this);
-	btn2->setText("aaa");
+QPushButton *btn2 = new QPushButton;
+btn2->move(0,0);
+btn2->setParent(this);
+btn2->setText("aaa");
 
-	[=](){
-	   btn2->setText("bbb");
-	}();
+[=](){
+   btn2->setText("bbb");
+}();
 
-    auto intToString = [=](QList<int> intList) -> QStringList {
-        QStringList strList;
-        for(auto i : intList)
-            strList << QString::number(i);
-        return strList;
-    };
+auto intToString = [=](QList<int> intList) -> QStringList {
+	QStringList strList;
+	for(auto i : intList)
+		strList << QString::number(i);
+	return strList;
+};
 
-#include "Commons.h"
-#include "savelog.h"
-#include "highlighter.h"
+//获取随机数（左闭右开[min, max)）
+static int randomInt(int min, int max) {
+	Q_ASSERT(min < max);
+	// 加入随机种子。种子是当前时间距离0点0分0秒的秒数。
+	// 每次启动程序，只添加一次种子，以做到数字真正随机。
+	static bool seedStatus;
+	if (!seedStatus)
+	{
+		std::srand(QTime(0, 0, 0).secsTo(QTime::currentTime()));
+		seedStatus = true;
+	}
+	int nRandom = std::rand() % (max - min);
+	nRandom = min + nRandom;
+
+	return nRandom;
+}
+
+// 闰年
+bool isLeapYear(int year)
+{
+    return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+}
+
+//Qt 数字转字符串，千分位分隔符
+QString numberToStr(int k) {
+	QString str = QString("%L1").arg(k);
+	return str;
+}
+
+//Qt 浮点数转字符串，千分位分隔符
+QString numberToStr(double k) {
+	QString str = QString("%L1").arg(k, 0, 'f', 0);
+	return str;
+}
+
+// 设置QLineEdit的文字从最左边开始显示（要在setText之后设置）
+// 方法一：setSelection
+ui->lineEdit->setSelection(0, 0);
+// 方法二：setCursorPosition
+ui->lineEdit->setCursorPosition(0);
 
 #include "JlCompress.h"
 
@@ -236,14 +290,19 @@ bool CommonsQt::setFilePermissions(QString filePath)
 
 #pragma execution_character_set("utf-8")
 
+#include "Commons.h"
+#include "MsgHighlight.h"
+#include "logs.h"
+
 //选择文件
 private Q_SLOTS:
     void onSelect();
 
 private:
+	void setQss();
     void setSaveLog();
     QString lastPath;
-    Highlighter *highlighter;
+    MsgHighlight *highlighter;
     void loadFiles(const QStringList &fileList);
     void loadFile(const QString &filePath);
 	
@@ -252,27 +311,73 @@ private:
 	void writeText(QString text);
     void writeText(qint64 value);
     void writeMsg(QString text, int msecs = 10000);
-    void timeConsuming(int msecs);
+    void timeConsuming(qint64 msecs);
 
 protected:
     void dragEnterEvent(QDragEnterEvent *event);
     void dropEvent(QDropEvent *event);
 
+setWindowTitle("title");
 setAcceptDrops(true);
 ui->plainTextEdit->setAcceptDrops(false);
 connect(ui->selectBtn, &QPushButton::clicked, this, &readEpub::onSelect);
 connect(ui->selectAct, &QAction::triggered, this, &readFile::onSelect);
 setStyleSheet(QString("font-family: Microsoft Yahei;"));
 statusBar()->setStyleSheet(QString("color: blue; font-size: 14px;"));
-highlighter = new Highlighter(ui->plainTextEdit->document());
-setSaveLog();
+setStyleSheet(QString("* {font-family: Microsoft Yahei;}\n"
+					  "QComboBox QAbstractItemView { outline: none; }\n"
+					  "QStatusBar { color: blue; font-size: 14px; }"));
+highlighter = new MsgHighlight(ui->plainTextEdit);
+setQss();
+SetSaveLog;
 startFiles();
+
+#if QT_NO_DEBUG
+    SetSaveLog;
+#endif
+
+// debug 列表
+template <class T>
+inline void debugList(const QList<T> &list) { for(const auto &t : list) qDebug () << t; }
+
+// 设置界面风格
+{
+	QStringList styles = QStyleFactory::keys(); // "windowsvista"（默认）, "Windows", "Fusion"
+	qApp->setStyle(QStyleFactory::create("Fusion");
+}
 
 // 设置窗体（常用于QDialog）最大化和最小化
 Qt::WindowFlags windowFlag  = Qt::Dialog;
 windowFlag                  |= Qt::WindowMinMaxButtonsHint;
 windowFlag                  |= Qt::WindowCloseButtonHint;
 setWindowFlags(windowFlag);
+
+// 工具栏添加 QWidget
+QComboBox *comboBox;
+void setComboBox();
+
+void fbdToTxt::setComboBox()
+{
+    ui->mainToolBar->addSeparator();
+    QWidget *widget = new QWidget();
+    QHBoxLayout *hLayout = new QHBoxLayout;
+    hLayout->setContentsMargins(3, 0, 3, 0);
+    QLabel *label = new QLabel("fbd 源文件格式：");
+    hLayout->addWidget(label);
+    comboBox = new QComboBox();
+    comboBox->addItems(QStringList{ "ANSI", "UTF-8" });
+    hLayout->addWidget(comboBox);
+    widget->setLayout(hLayout);
+    ui->mainToolBar->addWidget(widget);
+}
+
+void mergeImage::setQss()
+{
+    QFile file(":/qss");
+    file.open(QIODevice::ReadOnly);
+    qApp->setStyleSheet(QString(file.readAll()));
+    file.close();
+}
 
 void readFile::setSaveLog()
 {
@@ -317,14 +422,14 @@ void readFile::onSelect()
 void readFile::loadFiles(const QStringList &fileList)
 {
 	//操作多文件……
-    QTime timeUp;
+    QElapsedTimer timeUp;
     timeUp.start();
-    statusBar()->showMessage(u8"开始……");
+    statusBar()->showMessage("开始……");
 
     foreach (QString filePath, fileList)
         loadFile(filePath);
 
-    statusBar()->showMessage(u8"完毕", 10000);
+    statusBar()->showMessage("完毕", 10000);
     timeConsuming(timeUp.elapsed());
 }
 
@@ -349,12 +454,9 @@ void readFile::writeMsg(QString text, int msecs)
     statusBar()->showMessage(text, msecs);
 }
 
-void readFile::timeConsuming(int msecs)
+void readFile::timeConsuming(qint64 msecs)
 {
-    double secs = msecs / 1000.0;
-    QString timeStr = secs < 60 ? QString("%1 秒").arg(secs)
-                                : Commons::timeFormat(static_cast<int>(secs));
-    writeText(QString("共计耗时 %1\n").arg(timeStr));
+	highlighter->normal(QString("共计用时 %1\n").arg(Commons::timeFormat(msecs)));
 }
 
 void readFile::dragEnterEvent(QDragEnterEvent *event)
@@ -420,6 +522,53 @@ void readFile::dropEvent(QDropEvent *event)
     if(fileList.isEmpty())
         return;
     loadFiles(fileList);
+}
+
+// 程序编译时间
+void onAbout();
+void onAboutQt();
+
+connect(ui->aboutAct, &QAction::triggered, this, &QQReaderCheck::onAbout);
+connect(ui->aboutQtAct, &QAction::triggered, this, &QQReaderCheck::onAboutQt);
+
+QString QQReaderCheck::compilingDate()
+{
+    int day = QDate::currentDate().day();
+    QString format = day < 10 ? "MMM  d yyyy" : "MMM dd yyyy";
+#if 0
+    QString dateTime = QString("%1 %2").arg(__DATE__, __TIME__);
+    qDebug() << "编译日期" << dateTime;
+    QDateTime date = QLocale(QLocale::English)
+            .toDateTime(dateTime, QString(format + " hh:mm:ss"));
+#else
+    QString dateTime = QString("%1").arg(__DATE__);
+    qDebug() << "编译日期" << dateTime;
+    QDate date = QLocale(QLocale::English).toDate(dateTime, format);
+#endif
+    QString dateText = QLocale::system().toString(date);
+    return dateText;
+}
+
+void QQReaderCheck::onAbout()
+{
+    QString dateText = compilingDate();
+    QVersionNumber version(0, 9, 5);
+    QString title = windowTitle();
+    qDebug() << dateText << qVersion() << title << version.toString();
+    QString msg = QString("<p><b>%1 v%2 <b/></p>"
+                          "<p>%1是一个基于 <a style=\"text-decoration:none;\" "
+                          "href=\"https://www.qt.io/\">Qt %3</a>，"
+                          "使用 <a style=\"text-decoration:none;\" "
+                          "href=\"https://github.com/stachenov/quazip/\">"
+                          "%4</a>，检测QQ阅读epub内容是否符合规范的简易工具。</p>"
+                          "<p>&copy; 信息技术 - %5</p>")
+            .arg(title).arg(version.toString()).arg(qVersion()).arg("QuaZip").arg(dateText);
+    QMessageBox::about(this, "关于" + title, msg);
+}
+
+void QQReaderCheck::onAboutQt()
+{
+    QMessageBox::aboutQt(this, "关于 Qt");
 }
 
 public Q_SLOTS:
@@ -650,8 +799,17 @@ void readEpub::itemReceiver(QTableWidgetItem *item)
             }
         }
 
+// QTableWidget设置部分单元格可编辑
+
+// 1.先设置全局编辑属性（单元格焦点改变时可编辑）
+ui->tableWidget->setEditTriggers(QAbstractItemView::CurrentChanged);
+
+// 2.设置不可编辑的单元格，剩下的就是可编辑的
+QTableWidgetItem *item = ...;
+item->setFlags(item->flags() & (~Qt::ItemIsEditable));
+
 //QTableWidgetItem 设置不可编辑	
-item->setFlags(item->flags() & (~Qt::ItemIsEnabled));
+item->setFlags(item->flags() & (~Qt::ItemIsEnabled)); // ItemIsEnabled 会使单元格变成灰色
 //QTableWidgetItem 设置颜色
 item->setTextColor(Qt::blue);
 		
@@ -1061,4 +1219,101 @@ int indexOfLayout(QLayout *layout, QLayoutItem *layoutItem)
         item = layout->itemAt(i);
     }
     return -1;
+}
+
+ip:
+^((25[0-5]|2[0-4]\d|((1\d{2})|([1-9]?\d)))\.){3}(25[0-5]|2[0-4]\d|((1\d{2})|([1-9]?\d)))$
+
+port:
+1-65535
+^([0-9]{1,4}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$
+
+
+tableView->setIndexWidget(m_model->index(0, 1), new QPushButton("abcd"));
+
+// Qt 多线程
+// 一、QThreadPool 线程池 QRunnable
+class poolManager : public QObject
+class taskWorker : public QObject, public QRunnable
+
+// 主程序调用
+void mergeImage::setPoolManager(QStringList fileList, bool isBatch)
+{
+    qDebug() << "main process" << QThread::currentThreadId();
+    QThread *worker_thread = new QThread;
+    poolManager *manager = new poolManager(ui->threadSpinBox->value());
+    manager->setParams(fileList,
+                       ui->directCbB->currentIndex(),
+                       ui->imgCbB->currentText(),
+                       ui->moreWidget->isVisible(),
+                       ui->folderEdit->text(),
+                       ui->scaleCbB->currentIndex(),
+                       ui->scaleSpinBox->value(),
+                       ui->sizeSpinBox->value(),
+                       ui->averageSpinBox->value(),
+                       isBatch);
+    connect(manager, &poolManager::highlightChanged, this, &mergeImage::onHighlightChanged);
+    connect(manager, &poolManager::finished, this, &mergeImage::onManagerFinished);
+    connect(manager, &poolManager::finished, worker_thread, &QThread::quit);
+    connect(worker_thread, &QThread::finished, worker_thread, &QThread::deleteLater);
+    manager->moveToThread(worker_thread);
+    worker_thread->start();
+    manager->poolStart();
+}
+
+void mergeImage::onHighlightChanged(HighlightType type, QString msg)
+{
+    highlighter->appendMsg(type, msg);
+}
+
+void mergeImage::onManagerFinished(qint64 msecs)
+{
+    qDebug() << "结束多线程";
+    timeConsuming(msecs);
+    setButtonEnable(true);
+}
+
+// 二、QtConcurrent
+Qt += concurrent
+
+#include <QtConcurrent>
+#include <QFutureWatcher>
+
+// 1.run
+{
+    mergeObject *mergeObj = new mergeObject();
+    connect(mergeObj, &mergeObject::highlightChanged, this, &mergeImage::onHighlightChanged);
+    mergeObj->setParams(fileList,
+                        ui->directCbB->currentIndex(),
+                        ui->imgCbB->currentText(),
+                        ui->moreWidget->isVisible(),
+                        ui->folderEdit->text(),
+                        ui->scaleCbB->currentIndex(),
+                        ui->scaleSpinBox->value(),
+                        ui->sizeSpinBox->value(),
+                        ui->averageSpinBox->value());
+    QFuture<void> func = QtConcurrent::run(mergeObj, &mergeObject::merge, fileList);
+}
+
+// 2.map
+// map里面需要放静态函数
+{
+    QFuture<void> vFuture = QtConcurrent::map(list, mergeObject::test);
+    QFutureWatcher<void> *m_pWatcher = new QFutureWatcher<void>(this);
+    m_pWatcher->setFuture(vFuture);
+    connect(m_pWatcher, &QFutureWatcher<void>::started, [=](){
+        qDebug() << "QFutureWatcher started";
+    });
+    connect(m_pWatcher, &QFutureWatcher<void>::resultReadyAt, [=](int index){
+        qDebug() << "QFutureWatcher resultReadyAt" << index;
+    });
+    connect(m_pWatcher, &QFutureWatcher<void>::progressRangeChanged, [=](int minimum, int maximum){
+        qDebug() << "QFutureWatcher progressRangeChanged" << minimum << maximum;
+    });
+    connect(m_pWatcher, &QFutureWatcher<void>::progressValueChanged, [=](int value){
+        qDebug() << "QFutureWatcher progressValueChanged" << value;
+    });
+    connect(m_pWatcher, &QFutureWatcher<void>::finished, [=](){
+        qDebug() << "QFutureWatcher finished";
+    });
 }
