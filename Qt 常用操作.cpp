@@ -8,7 +8,10 @@
 #ifdef Q_OS_LINUX // linux 
 #endif 
 
-#ifdef Q_OS_WIN32 // win 
+#ifdef Q_OS_WIN // win 
+#endif
+
+#ifdef Q_OS_UNIX // unix 
 #endif
 
 #if (QT_VERSION >= QT_VERSION_CHECK(5, 6, 0))
@@ -25,6 +28,8 @@
 #endif
 
 CONFIG += utf8_source
+
+\B(?=(\d{3})+$)
 
 // 乱码问题
 #include <windows.h>
@@ -50,6 +55,8 @@ RCC_DIR = bin/qrc #指定rcc命令将.qrc文件转换成qrc_*.h文件的存放�
 UI_DIR = bin/ui #指定uic命令将.ui文件转化成ui_*.h文件的存放的目录
 
 //pro 工程文件添加quazip链接库
+
+INCLUDEPATH += $$[QT_INSTALL_HEADERS]/QtZlib
 
 win32:CONFIG(release, debug|release): LIBS += -L$$PWD/quazip/lib/ -lquazip
 else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/quazip/lib/ -lquazipd
@@ -89,6 +96,8 @@ INCLUDEPATH += ../../Utils/Commons
 
 include(../../Utils/SaveLog/SaveLog.pri)
 INCLUDEPATH += ../../Utils/SaveLog
+
+INCLUDEPATH += $$[QT_INSTALL_HEADERS]/QtZlib
 
 win32:CONFIG(release, debug|release): LIBS += -L$$PWD/../../Utils/quazip/lib/ -llibquazip1-qt5
 else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/../../Utils/quazip/lib/ -llibquazip1-qt5d
@@ -149,6 +158,70 @@ CONFIG(debug, debug|release){
     qDebug() << "debug mode";
 #endif
 
+// 程序单例模式：main.cpp，以uuidCreator程序为例
+#include "uuidCreator.h"
+#include <QTranslator>
+#include <SingleApplication>
+
+#ifdef Q_OS_WIN
+#include <Windows.h>
+#endif
+
+void raiseWidget(QWidget *w)
+{
+#ifdef Q_OS_WIN
+    HWND hwnd = (HWND)w->winId();
+    
+    // check if widget is minimized to Windows task bar
+    if (::IsIconic(hwnd)) {
+        ::ShowWindow(hwnd, SW_RESTORE);
+    }
+    
+    ::SetForegroundWindow(hwnd);
+#else
+    w->show();
+    w->raise();
+    w->activateWindow();
+#endif
+}
+
+int main(int argc, char *argv[])
+{
+#ifdef Q_OS_WIN
+    SingleApplication a(argc, argv, true);
+    
+    if (a.isSecondary()) {
+        AllowSetForegroundWindow( DWORD( a.primaryPid() ) );
+        a.sendMessage("RAISE_WIDGET");
+        return 0;
+    }
+#else
+    SingleApplication a(argc, argv);
+#endif
+    
+    uuidCreator w;
+
+#ifdef Q_OS_WIN
+    QObject::connect(&a, &SingleApplication::receivedMessage,
+                     &w, [ &w ] () { raiseWidget(&w); });
+#else
+    QObject::connect( &a, &SingleApplication::instanceStarted,
+                     &w, [ &w ] () { raiseWidget(&w); });
+#endif
+    
+    QTranslator tl;
+    tl.load(":/zh_CN");
+    a.installTranslator(&tl);
+    
+    QTranslator tl2;
+    tl2.load(":/qt_zh_CN");
+    a.installTranslator(&tl2);
+    
+    w.show();
+    
+    return a.exec();
+}
+
 //日志（不输出debug）
 void outputMessage(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {
@@ -204,11 +277,11 @@ a.setOrganizationName("managementSystem");
 //main.cpp 加载翻译文件
 
     QTranslator tl;
-    tl.load("://zh_CN");
+    tl.load(":/zh_CN");
     a.installTranslator(&tl);
 
     QTranslator tl2;
-    tl2.load("://qt_zh_CN");
+    tl2.load(":/qt_zh_CN");
     a.installTranslator(&tl2);
 	
 
@@ -569,6 +642,33 @@ void QQReaderCheck::onAbout()
 void QQReaderCheck::onAboutQt()
 {
     QMessageBox::aboutQt(this, "关于 Qt");
+}
+
+// epub文件生成完毕
+{
+    statusBar()->showMessage("新 epub 生成完毕", 10000);
+    int ret = QMessageBox::information(this,
+                                       windowTitle(),
+                                       "epub 生成完毕",
+                                       "确定",
+                                       "打开文件",
+                                       "打开文件所在目录");
+    if(ret == 0)
+        return;
+    if(ret == 1) {
+        QByteArray ba = QUrl::toPercentEncoding(epubPath);
+        QDesktopServices::openUrl(QUrl(QString("file:///%1").arg(QString(ba))));
+        return;
+    }
+    if(ret == 2) {
+        epubPath = QDir::toNativeSeparators(epubPath);
+        QProcess proc(this);
+        QString cmd("explorer.exe");
+        QStringList argList;
+        argList << QString("/select,") << filePath;
+        qDebug() << "打开文件：" << cmd << argList;
+        proc.startDetached(cmd, argList);
+    }
 }
 
 public Q_SLOTS:
@@ -1316,4 +1416,104 @@ Qt += concurrent
     connect(m_pWatcher, &QFutureWatcher<void>::finished, [=](){
         qDebug() << "QFutureWatcher finished";
     });
+}
+
+// QMap 迭代
+// 1.Java-Style Iterators
+QMapIterator<QString, int> i(map);
+while (i.hasNext()) {
+	i.next();
+	cout << i.key() << ": " << i.value() << Qt::endl;
+}
+
+// 2.STL-Style Iterators
+QMap<QString, int>::const_iterator i = map.constBegin();
+while (i != map.constEnd()) {
+	cout << i.key() << ": " << i.value() << Qt::endl;
+	++i;
+}
+
+QMap<QString, int>::iterator i = map.find("plenty");
+while (i != map.end() && i.key() == "plenty") {
+	cout << i.value() << Qt::endl;
+	++i;
+}
+
+QMap<QString, int>::iterator i;
+for(i = map.begin(); i != map.end(); ++i) {
+	cout << i.key() << ": " << i.value() << Qt::endl;
+	++i;
+}
+
+QMap<QString, int> strMap;
+
+QString strs = sList.join("_");
+if(strMap.contains(strs)) {
+	QMap<QString,int>::iterator it;
+	it = strMap.find(strs);
+	it.value()++;
+} else {
+	strMap.insert(strs, 1);
+}
+
+// Qt 系统托盘
+// *.h
+private Q_SLOTS:
+    void onSystemTrayActivated(QSystemTrayIcon::ActivationReason reason);
+    void showWidget();
+
+private:
+    void setSystemTrayIcon();
+    QSystemTrayIcon *trayIcon;
+    bool isMaximum = false;
+
+protected:
+    void closeEvent(QCloseEvent *event);
+
+// *.cpp
+//设置系统托盘菜单
+void QEverything::setSystemTrayIcon()
+{
+    trayIcon = new QSystemTrayIcon(this);
+    trayIcon->setIcon(QIcon(":/images/logo.png"));
+    trayIcon->setToolTip(windowTitle()); //提示文字
+    trayIcon->show();
+    connect(trayIcon, &QSystemTrayIcon::activated, this, &QEverything::onSystemTrayActivated);
+    QMenu *trayMenu = new QMenu;
+    QAction *showAct = new QAction(QIcon(":/images/logo2.png"), tr("显示"), trayMenu);
+    QAction *exitAct = new QAction(QIcon(":/images/quit.svg"), tr("退出"), trayMenu);
+    trayMenu->addAction(showAct);
+    trayMenu->addSeparator();
+    trayMenu->addAction(exitAct);
+    trayIcon->setContextMenu(trayMenu);
+    connect(showAct, &QAction::triggered, this, &QEverything::showWidget);
+//    connect(exitAct, &QAction::triggered, this, &QEverything::close);
+    connect(exitAct, &QAction::triggered, qApp, &QApplication::quit);
+}
+
+void QEverything::onSystemTrayActivated(QSystemTrayIcon::ActivationReason reason)
+{
+    if(reason != QSystemTrayIcon::DoubleClick)
+        return;
+    showWidget();
+}
+
+//显示主界面
+void QEverything::showWidget()
+{
+    isMaximum ? showMaximized() : showNormal();
+    raise();
+    activateWindow();
+}
+
+void QEverything::closeEvent(QCloseEvent *event)
+{
+    if(this->isVisible()) {
+        isMaximum = this->isMaximized();
+        hide();
+        event->ignore();
+    } else {
+        event->accept();
+        qApp->quit();
+    }
 }
