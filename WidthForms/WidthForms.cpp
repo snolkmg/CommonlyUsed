@@ -200,12 +200,14 @@ ushortPairList WidthForms::ushortCommonList()
     return list;
 }
 
-// ushort 过滤掉的全角列表（无需转换的）
-QList<ushort> WidthForms::ushortFilters()
+// ushort 过滤掉的全角列表（无需转换的），fullSpace: 无需转换的列表中是否包括全角空格，默认不包括
+QList<ushort> WidthForms::ushortFilters(bool fullSpace)
 {
     QList<ushort> filters;
     filters << 0xFF01 << 0xFF08 << 0xFF09 << 0xFF0C << 0xFF1A << 0xFF1B << 0xFF1F;
     //！（），：；？
+    if(fullSpace)
+        filters << 0x3000;
     return filters;
 }
 
@@ -286,13 +288,15 @@ QCharPairList WidthForms::charCommonList()
     return list;
 }
 
-// QChar 过滤掉的全角列表（无需转换的）
-QList<QChar> WidthForms::charFilters()
+// QChar 过滤掉的全角列表（无需转换的），fullSpace: 无需转换的列表中是否包括全角空格，默认不包括
+QList<QChar> WidthForms::charFilters(bool fullSpace)
 {
     QList<QChar> filters;
     filters << QChar(0xFF01) << QChar(0xFF08) << QChar(0xFF09) << QChar(0xFF0C)
             << QChar(0xFF1A) << QChar(0xFF1B) << QChar(0xFF1F);
     //！（），：；？
+    if(fullSpace)
+        filters << QChar(0x3000);
     return filters;
 }
 
@@ -373,8 +377,8 @@ QStringPairList WidthForms::stringCommonList()
     return list;
 }
 
-// QString 过滤掉的全角列表（无需转换的）
-QStringList WidthForms::stringFilters()
+// QString 过滤掉的全角列表（无需转换的），fullSpace: 无需转换的列表中是否包括全角空格，默认不包括
+QStringList WidthForms::stringFilters(bool fullSpace)
 {
     QStringList filters;
     filters << QString(QChar(0xFF01)) << QString(QChar(0xFF08))
@@ -382,6 +386,8 @@ QStringList WidthForms::stringFilters()
             << QString(QChar(0xFF1A)) << QString(QChar(0xFF1B))
             << QString(QChar(0xFF1F));
     //！（），：；？
+    if(fullSpace)
+        filters << QString(QChar(0x3000));
     return filters;
 }
 

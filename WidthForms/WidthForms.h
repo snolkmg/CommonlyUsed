@@ -33,9 +33,9 @@ public:
     static QString toFullQString(QString text, QStringPairList list = stringCommonList());
 
     //! 过滤（全角字符）列表
-    static QList<ushort> ushortFilters();
-    static QList<QChar> charFilters();
-    static QStringList stringFilters();
+    static QList<ushort> ushortFilters(bool fullSpace = false);
+    static QList<QChar> charFilters(bool fullSpace = false);
+    static QStringList stringFilters(bool fullSpace = false);
 
     //! ushort 全角半角 对 列表
     static ushortPairList ushortAllList();
