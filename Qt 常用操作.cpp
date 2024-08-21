@@ -27,7 +27,10 @@
 #include <QtGui>
 #endif
 
-CONFIG += utf8_source
+CONFIG += c++17 utf8_source
+
+// 程序报错“error C2065: “M_PI”: 未声明的标识符"
+DEFINES += _USE_MATH_DEFINES
 
 \B(?=(\d{3})+$)
 
@@ -42,6 +45,9 @@ SetConsoleOutputCP(codePage);
 u8"select *from text.case where name='张三'   "
 
  properties="duokan-page-fullscreen"
+ 
+<dc:title>title</dc:title>
+<dc:creator opf:role="aut">author</dc:creator>
 
 pyinstaller -F -w --icon="logo3.ico" 文件名.py
 
@@ -150,6 +156,36 @@ CONFIG(debug, debug|release){
     TARGET = ../../_release32/AppName
     }
 }
+
+// 对高分屏不同缩放比例的自适应处理方法
+//方法1：在main函数的最前面加上下面这句 5.6版本才开始有这个函数
+#if (QT_VERSION > QT_VERSION_CHECK(5,6,0))
+    QGuiApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+    //开启高缩放支持以后图片可能发虚还要开启下面这个属性
+    QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
+#endif
+
+//方法2：在可执行文件同目录下新建文件 qt.conf 填入下面内容
+[Platforms]
+WindowsArguments = dpiawareness=0
+//下面这行用来解决Qt高DPI下文字显示有锯齿的问题
+WindowsArguments = fontengine=freetype
+
+//方法3：在main函数最前面设置Qt内部的环境变量
+qputenv("QT_AUTO_SCREEN_SCALE_FACTOR", "1.5");
+
+//方法4：新版本的Qt比如Qt5.14修正了对高分屏的处理支持不是整数的缩放
+qputenv("QT_ENABLE_HIGHDPI_SCALING", "1");
+QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
+
+//禁用缩放
+//测试发现AA_Use96Dpi属性在Qt5.9以上版本完全正常，以下版本比如5.7有部分控件在175%缩放不正常比如QTextEdit，需要外层套个widget才行。
+#if (QT_VERSION >= QT_VERSION_CHECK(5,0,0))
+    QApplication::setAttribute(Qt::AA_Use96Dpi);
+#endif
+#if (QT_VERSION >= QT_VERSION_CHECK(5,14,0))
+    QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::Floor);
+#endif
 
 // 代码里判断当前编译模式
 #ifdef QT_NO_DEBUG
@@ -416,14 +452,31 @@ inline void debugList(const QList<T> &list) { for(const auto &t : list) qDebug (
 // 设置界面风格
 {
 	QStringList styles = QStyleFactory::keys(); // "windowsvista"（默认）, "Windows", "Fusion"
-	qApp->setStyle(QStyleFactory::create("Fusion");
+	qApp->setStyle(QStyleFactory::create("Fusion"));
 }
+
+// 标题栏高度
+this->style()->pixelMetric(QStyle::PM_TitleBarHeight);
 
 // 设置窗体（常用于QDialog）最大化和最小化
 Qt::WindowFlags windowFlag  = Qt::Dialog;
 windowFlag                  |= Qt::WindowMinMaxButtonsHint;
 windowFlag                  |= Qt::WindowCloseButtonHint;
 setWindowFlags(windowFlag);
+
+// 获取可读格式列表
+QList<QByteArray> readableFormats = QImageReader::supportedImageFormats();
+qDebug() << "Supported readable image formats:";
+for (const QByteArray &format : readableFormats) {
+	qDebug() << format;
+}
+
+// 获取可写格式列表
+QList<QByteArray> writableFormats = QImageWriter::supportedImageFormats();
+qDebug() << "Supported writable image formats:";
+for (const QByteArray &format : writableFormats) {
+	qDebug() << format;
+}
 
 // 工具栏添加 QWidget
 QComboBox *comboBox;
@@ -463,11 +516,24 @@ void readFile::setSaveLog()
 
 void readFile::startFiles()
 {
+	// 多文件
     QStringList fileList = QCoreApplication::arguments();
     if(fileList.size() < 2)
         return;
     fileList = fileList.mid(1);
     loadFiles(fileList);
+	
+	// 单文件
+	QStringList fileList = QCoreApplication::arguments();
+    if(fileList.size() < 2)
+        return;
+    fileList = fileList.mid(1);
+    QStringList epubList = fileList.filter(QRegularExpression("\\.epub$", QRegularExpression::MultilineOption));
+    if(epubList.isEmpty())
+        return;
+    QString filePath = epubList.at(0);
+    qDebug() << "启动文件" << filePath;
+    loadFile(QDir::fromNativeSeparators(filePath));
 }
 
 void readFile::onSelect()
@@ -529,7 +595,9 @@ void readFile::writeMsg(QString text, int msecs)
 
 void readFile::timeConsuming(qint64 msecs)
 {
-	highlighter->normal(QString("共计用时 %1\n").arg(Commons::timeFormat(msecs)));
+    QString timeStr = Commons::timeFormat(msecs);
+    timeStr = timeStr == "0" ? "" : QString("（%1）").arg(timeStr);
+    highlighter->normal(QString("完毕%1\n").arg(timeStr));
 }
 
 void readFile::dragEnterEvent(QDragEnterEvent *event)
@@ -606,15 +674,15 @@ connect(ui->aboutQtAct, &QAction::triggered, this, &QQReaderCheck::onAboutQt);
 
 QString QQReaderCheck::compilingDate()
 {
-    int day = QDate::currentDate().day();
-    QString format = day < 10 ? "MMM  d yyyy" : "MMM dd yyyy";
+    QString compDate = QString("%1").arg(__DATE__);
+    QString format = compDate.contains("  ") ? "MMM  d yyyy" : "MMM dd yyyy";
 #if 0
     QString dateTime = QString("%1 %2").arg(__DATE__, __TIME__);
     qDebug() << "编译日期" << dateTime;
     QDateTime date = QLocale(QLocale::English)
             .toDateTime(dateTime, QString(format + " hh:mm:ss"));
 #else
-    QString dateTime = QString("%1").arg(__DATE__);
+    QString dateTime = compDate;
     qDebug() << "编译日期" << dateTime;
     QDate date = QLocale(QLocale::English).toDate(dateTime, format);
 #endif
@@ -624,6 +692,7 @@ QString QQReaderCheck::compilingDate()
 
 void QQReaderCheck::onAbout()
 {
+	// 需要在初始化时设置程序图标 setWindowIcon(QIcon(":/icons/insert-image.svg"));
     QString dateText = compilingDate();
     QVersionNumber version(0, 9, 5);
     QString title = windowTitle();
