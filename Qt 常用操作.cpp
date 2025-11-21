@@ -194,6 +194,24 @@ QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRound
     qDebug() << "debug mode";
 #endif
 
+// 区分msvc和mingw
+win32-msvc {
+    CONFIG(debug, debug|release) {
+        LIBS += -L$$PWD/opencc_msvc/lib/Debug/ -lopencc
+    } else {
+        LIBS += -L$$PWD/opencc_msvc/lib/Release/ -lopencc
+    }
+} win32-g++ {
+    CONFIG(debug, debug|release) {
+        LIBS += -L$$PWD/opencc_mingw/lib/Debug/ -lopencc
+    } else {
+        LIBS += -L$$PWD/opencc_mingw/lib/Release/ -lopencc
+    }
+}
+
+INCLUDEPATH += $$PWD/opencc_msvc/include
+DEPENDPATH += $$PWD/opencc_msvc/include
+
 // 程序单例模式：main.cpp，以uuidCreator程序为例
 #include "uuidCreator.h"
 #include <QTranslator>
@@ -856,8 +874,7 @@ void readEpub::onOPenFile()
     QString fileName = ui->tableWidget->item(item->row(), 0)->text();
     QString filePath = ui->tableWidget->item(item->row(), 1)->text();
 
-    QByteArray ba = QUrl::toPercentEncoding(filePath);
-    bool ok = QDesktopServices::openUrl(QUrl(QString("file:///%1").arg(QString(ba))));
+    bool ok = QDesktopServices::openUrl(QUrl::fromLocalFile(filePath));
     if(!ok)
         statusBar()->showMessage(tr("%1 文件不存在").arg(fileName), 10000);
 }
@@ -872,7 +889,7 @@ void readEpub::onOpenFolder()
         statusBar()->showMessage(tr("%1 文件不存在").arg(fileName), 10000);
         return;
     }
-    filePath.replace("/", "\\");
+    filePath = QDir::toNativeSeparators(filePath);
     QProcess proc(this);
     QString cmd("explorer.exe");
     QStringList argList;
@@ -916,7 +933,7 @@ void countQingJian::openCurrentFolder(QString filePath)
         statusBar()->showMessage(tr("%1 文件不存在").arg(fileName), 10000);
         return;
     }
-    filePath.replace("/", "\\");
+    filePath = QDir::toNativeSeparators(filePath);
     QProcess proc(this);
     QString cmd = QString("explorer.exe /select,%1").arg(filePath);
     qDebug() << "打开文件：" << cmd;
@@ -1585,4 +1602,93 @@ void QEverything::closeEvent(QCloseEvent *event)
         event->accept();
         qApp->quit();
     }
+}
+
+//QSettings 遍历所有组和键
+QStringList groups = settings.childGroups();
+qDebug() << "Groups:" << groups;
+for (const QString &group : groups) {
+	settings.beginGroup(group);
+	QStringList keys = settings.childKeys();
+	qDebug() << "Group:" << group;
+	for (const QString &key : keys) {
+		QVariant value = settings.value(key);
+		qDebug() << key << ":" << value.toString();
+	}
+	settings.endGroup();
+}
+
+QStringList basicInfo::fileInfos(const QString &filePath)
+{
+    QFileInfo info(filePath);
+    QString fileName = info.fileName();
+    qint64 size = info.size();
+    QString sizeStr = byteUnit(size);
+    QString typeStr = info.suffix().toLower();
+
+    return QStringList { fileName, filePath, QString("%L1").arg(size), sizeStr, typeStr };
+}
+
+//字节转KB、MB、GB
+QString basicInfo::byteUnit(qint64 bytes)
+{
+    QString strUnit;
+    double dSize = bytes * 1.0;
+    if (dSize <= 0) {
+        return QString("0 字节");
+    } else if (dSize < 1024) {
+        return QString("%1 字节").arg(bytes);
+    } else if (dSize < 1024 * 1024) {
+        dSize /= 1024;
+        strUnit = "KB";
+    } else if (dSize < 1024 * 1024 * 1024) {
+        dSize /= (1024 * 1024);
+        strUnit = "MB";
+    } else if (dSize < qint64(1024) * 1024 * 1024 * 1024) {
+        dSize /= (1024 * 1024 * 1024);
+        strUnit = "GB";
+    } else {
+        dSize /= (qint64(1024) * 1024 * 1024 * 1024);
+        strUnit = "TB";
+    }
+
+    return QString(QString::number(dSize, 'f', 2) + " " + strUnit);
+}
+
+QStringList basicInfo::dateTimes(const QString &filePath)
+{
+    QFileInfo info(filePath);
+    return QStringList() << QLocale().toString(info.birthTime(), QLocale::LongFormat)
+                         << QLocale().toString(info.lastModified(), QLocale::LongFormat)
+                         << QLocale().toString(info.lastRead(), QLocale::LongFormat);
+}
+
+QIcon basicInfo::fileIcon(const QString &filePath)
+{
+    return QFileIconProvider().icon(QFileInfo(filePath));
+}
+
+void setHeaderVisible(bool visible);
+	
+void miguOcfMeta::setHeaderVisible(bool visible)
+{
+    ui->tableWidget->horizontalHeader()->setVisible(visible);
+    ui->tableWidget->setHorizontalScrollBarPolicy(visible ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff);
+}
+
+QString summation::formatDouble(double value, int precision, bool removeTrailingZeros)
+{
+    QString str = QString::number(value, 'f', precision);
+
+    // 如果需要，去除末尾的零和可能的小数点
+    if (removeTrailingZeros) {
+        str = str.trimmed();
+        int dot = str.indexOf('.');
+        if (dot != -1) {
+            while (str.endsWith('0')) str.chop(1);
+            if (str.endsWith('.')) str.chop(1);
+        }
+    }
+
+    return str;
 }
